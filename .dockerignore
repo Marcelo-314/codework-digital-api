@@ -1,0 +1,17 @@
+.git
+.github
+target
+.idea
+.vscode
+*.iml
+.DS_Store
+Thumbs.db
+.env
+.env.*
+*.secret
+*.secrets
+secrets
+*.log
+*.tmp
+*.temp
+README.md

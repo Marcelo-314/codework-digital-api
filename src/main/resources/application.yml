@@ -1,0 +1,21 @@
+spring:
+  application:
+    name: cwd-api
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+
+server:
+  address: 0.0.0.0
+  port: ${PORT:8080}
+  shutdown: graceful
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+      discovery:
+        enabled: false
+  endpoint:
+    health:
+      show-details: never
