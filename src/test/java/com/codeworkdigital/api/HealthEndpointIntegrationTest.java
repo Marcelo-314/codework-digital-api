@@ -2,6 +2,7 @@ package com.codeworkdigital.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.codeworkdigital.api.support.PostgreSqlIntegrationTestSupport;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -12,7 +13,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-class HealthEndpointIntegrationTest {
+class HealthEndpointIntegrationTest extends PostgreSqlIntegrationTestSupport {
 
     private final HttpClient httpClient = HttpClient.newHttpClient();
 

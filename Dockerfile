@@ -7,7 +7,7 @@ COPY mvnw pom.xml ./
 RUN ./mvnw -B -ntp dependency:go-offline
 
 COPY src/ src/
-RUN ./mvnw -B -ntp clean package
+RUN ./mvnw -B -ntp clean package -DskipTests
 
 FROM eclipse-temurin:21-jre-jammy AS runtime
 
