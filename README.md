@@ -134,6 +134,16 @@ API responses under `/api/` include defensive no-store, nosniff, no-referrer, an
 
 This endpoint is ready for local validation and controlled technical sandbox use. It must not be considered fully published in production yet: rate limiting, Render configuration, frontend integration, trusted proxy policy, and operational hardening are still pending.
 
+## Render sandbox
+
+This repository includes `render.yaml` as a Render Blueprint contract for an ephemeral sandbox. It explicitly defines project `cwd-contact-sandbox`, environment `Sandbox`, a Docker Web Service, and PostgreSQL in Frankfurt. The Blueprint is the canonical source for that structure, deploys branch `develop`, and uses `/actuator/health` for health checks.
+
+The Blueprint does not contain secrets and does not create resources by itself in this commit. Database credentials are referenced from Render PostgreSQL with `fromDatabase`. `RENDER_DATABASE_URL` receives Render's internal `postgresql://user:password@host:port/database` connection string, and the Docker entrypoint derives the JDBC URL required by pgJDBC without printing credentials. Direct `SPRING_DATASOURCE_URL=jdbc:postgresql://...` remains supported for local and non-Render runs.
+
+The current empty manual Render project must be verified and removed immediately before later provisioning unless the Blueprint preview proves Render will adopt it without duplicating it. `Deploy Blueprint` starts provisioning and the first deploy. `autoDeployTrigger: off` controls the Web Service's Git autodeploys; Blueprint Auto Sync is separate and should be set to No in Render after creation to require Manual Sync.
+
+See [docs/render-sandbox.md](docs/render-sandbox.md) for provisioning, smoke, rollback, and teardown guidance.
+
 ## Docker
 
 Run `clean verify` before building the image. Testcontainers requires Docker to execute PostgreSQL-backed integration tests; the Docker image build packages the application without running those tests again.
@@ -147,9 +157,9 @@ docker build --tag cwd-api:http-hardening .
 Run the container:
 
 ```bash
-docker run --rm --publish 18081:18081 --env PORT=18081 --env SPRING_DATASOURCE_URL=jdbc:postgresql://host.docker.internal:5432/cwd_api --env SPRING_DATASOURCE_USERNAME=example_user --env SPRING_DATASOURCE_PASSWORD=example_password --env TURNSTILE_SECRET_KEY=example_test_secret --env TURNSTILE_ALLOWED_HOSTNAMES=localhost --env CWD_ALLOWED_ORIGINS=http://localhost:3000 cwd-api:http-hardening
+docker run --rm --publish 18081:18081 --env PORT=18081 --env SPRING_DATASOURCE_URL=jdbc:postgresql://host.docker.internal:5432/cwd_api --env SPRING_DATASOURCE_USERNAME=local_user_placeholder --env SPRING_DATASOURCE_PASSWORD=local_password_placeholder --env TURNSTILE_SECRET_KEY=local_turnstile_secret_placeholder --env TURNSTILE_ALLOWED_HOSTNAMES=localhost --env CWD_ALLOWED_ORIGINS=http://localhost:3000 cwd-api:http-hardening
 ```
 
 ## Not Implemented
 
-This foundation does not include rate limiting, Render configuration, authentication, frontend integration, administrative APIs, or CI/CD.
+This foundation does not include rate limiting, sandbox provisioning, remote smoke validation, DNS or custom domain setup, production Render configuration, authentication, frontend integration, administrative APIs, or CI/CD.
