@@ -10,6 +10,7 @@ class ContactSubmissionPayloadHasherTest {
 
     private static final String EXPECTED_VECTOR =
             "7e8efa0a429a05304de89079e4dff69040f1c5ed72827ff62e6f45847dd42b98";
+    private static final String TEST_TURNSTILE_TOKEN = "test-turnstile-token";
 
     private final ContactSubmissionPayloadHasher hasher = new ContactSubmissionPayloadHasher();
     private final ContactSubmissionNormalizer normalizer = new ContactSubmissionNormalizer();
@@ -82,6 +83,15 @@ class ContactSubmissionPayloadHasherTest {
         assertThat(cr).isEqualTo(lf);
     }
 
+    @Test
+    void turnstileTokenDoesNotAffectTheNormalizedPayloadHash() {
+        String first = hasher.hash(normalizer.normalize(commandWithMessageAndToken("Line\nTwo", "first-test-token")));
+        String second = hasher.hash(normalizer.normalize(commandWithMessageAndToken("Line\nTwo", "second-test-token")));
+
+        assertThat(first).isEqualTo(second);
+        assertThat(first).isEqualTo(EXPECTED_VECTOR);
+    }
+
     private NormalizedContactSubmissionPayload payload() {
         return new NormalizedContactSubmissionPayload(
                 ContactSource.HOME,
@@ -142,6 +152,10 @@ class ContactSubmissionPayloadHasherTest {
     }
 
     private SubmitContactSubmissionCommand commandWithMessage(String message) {
+        return commandWithMessageAndToken(message, TEST_TURNSTILE_TOKEN);
+    }
+
+    private SubmitContactSubmissionCommand commandWithMessageAndToken(String message, String token) {
         return new SubmitContactSubmissionCommand(
                 java.util.UUID.randomUUID(),
                 ContactSource.HOME,
@@ -150,6 +164,7 @@ class ContactSubmissionPayloadHasherTest {
                 "Ada@Example.TEST",
                 null,
                 "CodeWork",
-                message);
+                message,
+                token);
     }
 }

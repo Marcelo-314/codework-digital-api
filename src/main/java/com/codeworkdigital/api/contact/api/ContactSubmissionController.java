@@ -42,7 +42,8 @@ public class ContactSubmissionController {
                 request.email(),
                 request.phone(),
                 request.companyOrProject(),
-                request.message()));
+                request.message(),
+                request.turnstileToken()));
 
         ContactSubmissionResponse response = new ContactSubmissionResponse(
                 result.submissionId(),
