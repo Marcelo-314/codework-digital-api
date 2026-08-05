@@ -16,8 +16,11 @@ WORKDIR /app
 RUN groupadd --system app && useradd --system --gid app --home-dir /app --shell /usr/sbin/nologin app
 
 COPY --from=build /workspace/target/cwd-api-0.0.1-SNAPSHOT.jar /app/cwd-api.jar
+COPY --chown=app:app deploy/render/docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod 0555 /app/docker-entrypoint.sh
 
 USER app:app
 EXPOSE 8080
 
-ENTRYPOINT ["java", "-jar", "/app/cwd-api.jar"]
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
+CMD ["java", "-jar", "/app/cwd-api.jar"]

@@ -1,0 +1,59 @@
+previews:
+  generation: off
+
+projects:
+  - name: cwd-contact-sandbox
+    environments:
+      - name: Sandbox
+        services:
+          - type: web
+            name: cwd-api-sandbox
+            runtime: docker
+            plan: free
+            region: frankfurt
+            branch: develop
+            autoDeployTrigger: off
+            numInstances: 1
+            healthCheckPath: /actuator/health
+            maxShutdownDelaySeconds: 30
+            dockerfilePath: ./Dockerfile
+            dockerContext: .
+            envVars:
+              - key: RENDER_DATABASE_URL
+                fromDatabase:
+                  name: cwd-api-sandbox-db
+                  property: connectionString
+              - key: SPRING_DATASOURCE_USERNAME
+                fromDatabase:
+                  name: cwd-api-sandbox-db
+                  property: user
+              - key: SPRING_DATASOURCE_PASSWORD
+                fromDatabase:
+                  name: cwd-api-sandbox-db
+                  property: password
+              - key: TURNSTILE_SECRET_KEY
+                sync: false
+              - key: TURNSTILE_ALLOWED_HOSTNAMES
+                sync: false
+              - key: TURNSTILE_HOME_ACTION
+                sync: false
+              - key: TURNSTILE_CONTACT_PAGE_ACTION
+                sync: false
+              - key: CWD_ALLOWED_ORIGINS
+                sync: false
+              - key: CWD_CORS_MAX_AGE
+                value: 1h
+              - key: CWD_MAX_CONTACT_REQUEST_BYTES
+                value: "65536"
+              - key: SERVER_MAX_HTTP_REQUEST_HEADER_SIZE
+                value: 8KB
+
+        databases:
+          - name: cwd-api-sandbox-db
+            plan: free
+            region: frankfurt
+            postgresMajorVersion: "17"
+            databaseName: cwd_api
+            user: cwd_api
+            connectionPool: none
+            ipAllowList: []
