@@ -8,14 +8,18 @@ import com.codeworkdigital.api.verification.application.HumanVerificationRejecte
 import com.codeworkdigital.api.verification.application.HumanVerificationService;
 import com.codeworkdigital.api.verification.application.HumanVerificationUnavailableException;
 import java.io.IOException;
+import java.net.http.HttpRequest.BodyPublisher;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.Flow;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,6 +35,9 @@ import tools.jackson.databind.ObjectMapper;
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class ContactSubmissionApiIntegrationTest extends PostgreSqlIntegrationTestSupport {
+
+    private static final String ALLOWED_ORIGIN = "http://localhost:3000";
+    private static final String DISALLOWED_ORIGIN = "http://malicious.example.test";
 
     private final HttpClient httpClient = HttpClient.newHttpClient();
 
@@ -69,6 +76,79 @@ class ContactSubmissionApiIntegrationTest extends PostgreSqlIntegrationTestSuppo
         assertThat(row.get("locale")).isEqualTo("ES");
         assertThat(row.get("status")).isEqualTo("RECEIVED");
         assertThat(humanVerificationService.contexts).containsExactly(HumanVerificationContext.CONTACT_HOME);
+    }
+
+    @Test
+    void allowedPreflightAuthorizesOnlyConfiguredCorsContract() throws Exception {
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(uri("/api/v1/contact-submissions"))
+                .header("Origin", ALLOWED_ORIGIN)
+                .header("Access-Control-Request-Method", "POST")
+                .header("Access-Control-Request-Headers", "Content-Type, Idempotency-Key")
+                .method("OPTIONS", HttpRequest.BodyPublishers.noBody())
+                .build();
+
+        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+        assertThat(response.statusCode()).isBetween(200, 299);
+        assertThat(response.headers().firstValue("access-control-allow-origin")).contains(ALLOWED_ORIGIN);
+        assertThat(response.headers().firstValue("access-control-allow-methods")).hasValueSatisfying(value ->
+                assertThat(value).contains("POST"));
+        assertThat(response.headers().firstValue("access-control-allow-headers")).hasValueSatisfying(value ->
+                assertThat(value.toLowerCase()).contains("content-type", "idempotency-key"));
+        assertThat(response.headers().firstValue("access-control-max-age")).contains("3600");
+        assertThat(response.headers().firstValue("access-control-allow-credentials")).isEmpty();
+        assertThat(response.headers().firstValue("vary")).isPresent();
+        assertThat(humanVerificationService.contexts).isEmpty();
+        assertThat(rowCount()).isZero();
+    }
+
+    @Test
+    void allowedOriginPostIncludesExactCorsAuthorization() throws Exception {
+        HttpResponse<String> response = postWithOrigin(
+                UUID.randomUUID().toString(),
+                validJson("HOME", "es", "Project message"),
+                ALLOWED_ORIGIN);
+
+        assertThat(response.statusCode()).isEqualTo(201);
+        assertThat(response.headers().firstValue("access-control-allow-origin")).contains(ALLOWED_ORIGIN);
+        assertThat(response.headers().firstValue("access-control-allow-credentials")).isEmpty();
+        assertDefensiveHeaders(response);
+    }
+
+    @Test
+    void disallowedOriginIsRejectedBeforeVerification() throws Exception {
+        HttpResponse<String> response = postWithOrigin(
+                UUID.randomUUID().toString(),
+                validJson("HOME", "es", "Project message"),
+                DISALLOWED_ORIGIN);
+
+        assertThat(response.statusCode()).isEqualTo(403);
+        assertThat(response.headers().firstValue("access-control-allow-origin")).isEmpty();
+        assertThat(humanVerificationService.contexts).isEmpty();
+        assertThat(rowCount()).isZero();
+    }
+
+    @Test
+    void arbitraryWildcardOriginIsNotAuthorized() throws Exception {
+        HttpResponse<String> response = postWithOrigin(
+                UUID.randomUUID().toString(),
+                validJson("HOME", "es", "Project message"),
+                "http://another-origin.example.test");
+
+        assertThat(response.statusCode()).isEqualTo(403);
+        assertThat(response.headers().firstValue("access-control-allow-origin")).isEmpty();
+        assertThat(humanVerificationService.contexts).isEmpty();
+        assertThat(rowCount()).isZero();
+    }
+
+    @Test
+    void requestWithoutOriginContinuesToWork() throws Exception {
+        HttpResponse<String> response = post(UUID.randomUUID().toString(), validJson("HOME", "es", "Project message"));
+
+        assertThat(response.statusCode()).isEqualTo(201);
+        assertThat(response.headers().firstValue("access-control-allow-origin")).isEmpty();
+        assertThat(rowCount()).isEqualTo(1);
     }
 
     @Test
@@ -233,6 +313,40 @@ class ContactSubmissionApiIntegrationTest extends PostgreSqlIntegrationTestSuppo
         assertProblem(response, 400, "human_verification_failed", "/api/v1/contact-submissions");
         assertThat(rowCount()).isZero();
         assertThat(response.body()).doesNotContain("rejected-token", "invalid-input-response", "hostname", "action");
+    }
+
+    @Test
+    void unknownJsonFieldIsRejectedBeforeVerification() throws Exception {
+        String body = validJson("HOME", "es", "Project message")
+                .replace("\n}", ",\n  \"unexpectedField\": \"value\"\n}");
+
+        HttpResponse<String> response = post(UUID.randomUUID().toString(), body);
+
+        assertProblem(response, 400, "invalid_request", "/api/v1/contact-submissions");
+        assertThat(humanVerificationService.contexts).isEmpty();
+        assertThat(rowCount()).isZero();
+    }
+
+    @Test
+    void rejectsOversizedBodyWithKnownContentLengthBeforeVerification() throws Exception {
+        String body = validJson("HOME", "es", "Project message")
+                .replace("Project message", "A".repeat(66000));
+
+        HttpResponse<String> response = post(UUID.randomUUID().toString(), body);
+
+        assertRequestTooLarge(response);
+    }
+
+    @Test
+    void rejectsOversizedBodyWithUnknownContentLengthBeforeVerification() throws Exception {
+        String body = validJson("HOME", "es", "Project message")
+                .replace("Project message", "A".repeat(66000));
+
+        HttpResponse<String> response = postWithBodyPublisher(
+                UUID.randomUUID().toString(),
+                unknownLengthPublisher(body));
+
+        assertRequestTooLarge(response);
     }
 
     @Test
@@ -405,6 +519,19 @@ class ContactSubmissionApiIntegrationTest extends PostgreSqlIntegrationTestSuppo
     }
 
     @Test
+    void defensiveHeadersAreAppliedToValidationErrorsAndTurnstileUnavailable() throws Exception {
+        HttpResponse<String> validation = post(UUID.randomUUID().toString(), validJson("HOME", "es", "Project message")
+                .replace("ada@example.test", "invalid-email"));
+        HttpResponse<String> unavailable = post(UUID.randomUUID().toString(), validJson("HOME", "es", "Project message")
+                .replace("valid-token", "unavailable-token"));
+
+        assertProblem(validation, 400, "validation_failed", "/api/v1/contact-submissions");
+        assertProblem(unavailable, 503, "human_verification_unavailable", "/api/v1/contact-submissions");
+        assertDefensiveHeaders(validation);
+        assertDefensiveHeaders(unavailable);
+    }
+
+    @Test
     void successfulResponseDoesNotExposePayloadOrPersonalData() throws Exception {
         HttpResponse<String> response = post(UUID.randomUUID().toString(), validJson("HOME", "es", "Project message"));
 
@@ -458,12 +585,52 @@ class ContactSubmissionApiIntegrationTest extends PostgreSqlIntegrationTestSuppo
         assertThat(response.body()).doesNotContain("stackTrace", "exception", "rejectedValue");
     }
 
+    private void assertRequestTooLarge(HttpResponse<String> response) throws Exception {
+        assertProblem(response, 413, "request_too_large", "/api/v1/contact-submissions");
+        assertDefensiveHeaders(response);
+        assertThat(humanVerificationService.contexts).isEmpty();
+        assertThat(rowCount()).isZero();
+        assertThat(response.body()).doesNotContain("66000", "65536", "valid-token", "Ada Lovelace", "ada@example.test");
+    }
+
+    private void assertDefensiveHeaders(HttpResponse<String> response) {
+        assertThat(response.headers().firstValue("cache-control")).contains("no-store");
+        assertThat(response.headers().firstValue("pragma")).contains("no-cache");
+        assertThat(response.headers().firstValue("x-content-type-options")).contains("nosniff");
+        assertThat(response.headers().firstValue("referrer-policy")).contains("no-referrer");
+        assertThat(response.headers().firstValue("content-security-policy"))
+                .contains("default-src 'none'; frame-ancestors 'none'");
+    }
+
     private HttpResponse<String> post(String idempotencyKey, String body) throws IOException, InterruptedException {
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(uri("/api/v1/contact-submissions"))
                 .header("Content-Type", "application/json")
                 .header("Idempotency-Key", idempotencyKey)
                 .POST(HttpRequest.BodyPublishers.ofString(body))
+                .build();
+        return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    }
+
+    private HttpResponse<String> postWithOrigin(String idempotencyKey, String body, String origin)
+            throws IOException, InterruptedException {
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(uri("/api/v1/contact-submissions"))
+                .header("Origin", origin)
+                .header("Content-Type", "application/json")
+                .header("Idempotency-Key", idempotencyKey)
+                .POST(HttpRequest.BodyPublishers.ofString(body))
+                .build();
+        return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    }
+
+    private HttpResponse<String> postWithBodyPublisher(String idempotencyKey, BodyPublisher publisher)
+            throws IOException, InterruptedException {
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(uri("/api/v1/contact-submissions"))
+                .header("Content-Type", "application/json")
+                .header("Idempotency-Key", idempotencyKey)
+                .POST(publisher)
                 .build();
         return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
     }
@@ -479,6 +646,38 @@ class ContactSubmissionApiIntegrationTest extends PostgreSqlIntegrationTestSuppo
 
     private URI uri(String path) {
         return URI.create("http://localhost:" + port + path);
+    }
+
+    private BodyPublisher unknownLengthPublisher(String body) {
+        byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+        return new BodyPublisher() {
+            @Override
+            public long contentLength() {
+                return -1;
+            }
+
+            @Override
+            public void subscribe(Flow.Subscriber<? super ByteBuffer> subscriber) {
+                subscriber.onSubscribe(new Flow.Subscription() {
+                    private boolean done;
+
+                    @Override
+                    public void request(long n) {
+                        if (done) {
+                            return;
+                        }
+                        done = true;
+                        subscriber.onNext(ByteBuffer.wrap(bytes));
+                        subscriber.onComplete();
+                    }
+
+                    @Override
+                    public void cancel() {
+                        done = true;
+                    }
+                });
+            }
+        };
     }
 
     private String validJson(String source, String locale, String message) {

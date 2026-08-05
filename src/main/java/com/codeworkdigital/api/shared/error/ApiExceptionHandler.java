@@ -4,6 +4,7 @@ import com.codeworkdigital.api.contact.api.InvalidIdempotencyKeyException;
 import com.codeworkdigital.api.contact.api.UnsupportedContactValueException;
 import com.codeworkdigital.api.contact.application.ContactSubmissionValidationException;
 import com.codeworkdigital.api.contact.application.IdempotencyConflictException;
+import com.codeworkdigital.api.shared.web.RequestBodyTooLargeException;
 import com.codeworkdigital.api.verification.application.HumanVerificationRejectedException;
 import com.codeworkdigital.api.verification.application.HumanVerificationUnavailableException;
 import jakarta.validation.ConstraintViolation;
@@ -81,6 +82,12 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
             WebRequest request) {
         return problem(HttpStatus.SERVICE_UNAVAILABLE, "human_verification_unavailable",
                 "Human verification unavailable", "Human verification is temporarily unavailable. Try again later.", request);
+    }
+
+    @ExceptionHandler(RequestBodyTooLargeException.class)
+    ResponseEntity<Object> handleRequestBodyTooLarge(RequestBodyTooLargeException exception, WebRequest request) {
+        return problem(HttpStatus.CONTENT_TOO_LARGE, "request_too_large",
+                "Request body too large", "The request body exceeds the allowed size.", request);
     }
 
     @Override
