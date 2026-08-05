@@ -1,6 +1,9 @@
 spring:
   application:
     name: cwd-api
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
   lifecycle:
     timeout-per-shutdown-phase: 20s
 
@@ -8,6 +11,12 @@ server:
   address: 0.0.0.0
   port: ${PORT:8080}
   shutdown: graceful
+  max-http-request-header-size: ${SERVER_MAX_HTTP_REQUEST_HEADER_SIZE:8KB}
+  error:
+    include-exception: false
+    include-message: never
+    include-binding-errors: never
+    include-stacktrace: never
 
 management:
   endpoints:
@@ -21,6 +30,10 @@ management:
       show-details: never
 
 cwd:
+  web:
+    allowed-origins: ${CWD_ALLOWED_ORIGINS}
+    cors-max-age: ${CWD_CORS_MAX_AGE:1h}
+    max-contact-request-bytes: ${CWD_MAX_CONTACT_REQUEST_BYTES:65536}
   turnstile:
     secret-key: ${TURNSTILE_SECRET_KEY}
     siteverify-url: ${TURNSTILE_SITEVERIFY_URL:https://challenges.cloudflare.com/turnstile/v0/siteverify}

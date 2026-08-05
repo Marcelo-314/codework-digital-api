@@ -36,6 +36,7 @@ SPRING_DATASOURCE_USERNAME
 SPRING_DATASOURCE_PASSWORD
 TURNSTILE_SECRET_KEY
 TURNSTILE_ALLOWED_HOSTNAMES
+CWD_ALLOWED_ORIGINS
 ```
 
 Optional Turnstile settings:
@@ -46,9 +47,14 @@ TURNSTILE_HOME_ACTION
 TURNSTILE_CONTACT_PAGE_ACTION
 TURNSTILE_CONNECT_TIMEOUT
 TURNSTILE_REQUEST_TIMEOUT
+CWD_CORS_MAX_AGE
+CWD_MAX_CONTACT_REQUEST_BYTES
+SERVER_MAX_HTTP_REQUEST_HEADER_SIZE
 ```
 
 Default Turnstile actions are `contact_home` and `contact_page`. Hostnames are matched exactly; configure every allowed hostname explicitly. Development can use Cloudflare's public test keys, but do not store production secrets in this repository.
+
+`CWD_ALLOWED_ORIGINS` is required and must contain exact comma-separated browser origins, for example `http://localhost:3000`. Wildcards and origin patterns are not accepted. CORS is configured only for `POST /api/v1/contact-submissions`, does not allow credentials, and authorizes only the request headers needed by the contact contract. Requests without an `Origin` header continue to work for local tools and server-to-server validation.
 
 Windows PowerShell:
 
@@ -122,9 +128,11 @@ Repeating the same `Idempotency-Key` with the same normalized payload and a fres
 
 Turnstile rejection returns HTTP 400 with code `human_verification_failed`. Turnstile provider unavailability returns HTTP 503 with code `human_verification_unavailable`.
 
-Validation and request errors use Problem Details with stable `code` values and do not include submitted personal data.
+Validation and request errors use Problem Details with stable `code` values and do not include submitted personal data. Unknown JSON properties are rejected with code `invalid_request`. Contact submission request bodies are limited to 65,536 bytes by default; larger bodies return HTTP 413 with code `request_too_large`.
 
-This endpoint is ready only for local validation and technical sandbox use. It must not be exposed publicly in production yet: CORS, rate limiting, Render configuration, frontend integration, and exposure hardening are not configured.
+API responses under `/api/` include defensive no-store, nosniff, no-referrer, and deny-all content security policy headers.
+
+This endpoint is ready for local validation and controlled technical sandbox use. It must not be considered fully published in production yet: rate limiting, Render configuration, frontend integration, trusted proxy policy, and operational hardening are still pending.
 
 ## Docker
 
@@ -133,15 +141,15 @@ Run `clean verify` before building the image. Testcontainers requires Docker to 
 Build the image:
 
 ```bash
-docker build --tag cwd-api:turnstile .
+docker build --tag cwd-api:http-hardening .
 ```
 
 Run the container:
 
 ```bash
-docker run --rm --publish 18081:18081 --env PORT=18081 --env SPRING_DATASOURCE_URL=jdbc:postgresql://host.docker.internal:5432/cwd_api --env SPRING_DATASOURCE_USERNAME=example_user --env SPRING_DATASOURCE_PASSWORD=example_password --env TURNSTILE_SECRET_KEY=example_test_secret --env TURNSTILE_ALLOWED_HOSTNAMES=localhost cwd-api:turnstile
+docker run --rm --publish 18081:18081 --env PORT=18081 --env SPRING_DATASOURCE_URL=jdbc:postgresql://host.docker.internal:5432/cwd_api --env SPRING_DATASOURCE_USERNAME=example_user --env SPRING_DATASOURCE_PASSWORD=example_password --env TURNSTILE_SECRET_KEY=example_test_secret --env TURNSTILE_ALLOWED_HOSTNAMES=localhost --env CWD_ALLOWED_ORIGINS=http://localhost:3000 cwd-api:http-hardening
 ```
 
 ## Not Implemented
 
-This foundation does not include CORS, rate limiting, Render configuration, authentication, frontend integration, administrative APIs, or CI/CD.
+This foundation does not include rate limiting, Render configuration, authentication, frontend integration, administrative APIs, or CI/CD.
