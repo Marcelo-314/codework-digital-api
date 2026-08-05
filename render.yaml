@@ -15,7 +15,6 @@ projects:
             autoDeployTrigger: off
             numInstances: 1
             healthCheckPath: /actuator/health
-            maxShutdownDelaySeconds: 30
             dockerfilePath: ./Dockerfile
             dockerContext: .
             envVars:
