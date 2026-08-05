@@ -8,6 +8,10 @@ import com.codeworkdigital.api.contact.domain.ContactSource;
 import com.codeworkdigital.api.contact.domain.ContactStatus;
 import com.codeworkdigital.api.contact.domain.ContactSubmission;
 import com.codeworkdigital.api.contact.domain.ContactSubmissionRepository;
+import com.codeworkdigital.api.verification.application.HumanVerificationContext;
+import com.codeworkdigital.api.verification.application.HumanVerificationRejectedException;
+import com.codeworkdigital.api.verification.application.HumanVerificationService;
+import com.codeworkdigital.api.verification.application.HumanVerificationUnavailableException;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
 import jakarta.validation.ValidatorFactory;
@@ -15,6 +19,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -41,7 +46,8 @@ class ContactSubmissionApplicationServiceTest {
     @Test
     void createsNewSubmission() {
         FakeRepository repository = new FakeRepository();
-        ContactSubmissionApplicationService service = service(repository);
+        FakeHumanVerificationService verification = new FakeHumanVerificationService();
+        ContactSubmissionApplicationService service = service(repository, verification);
 
         SubmitContactSubmissionResult result = service.submit(command("  Ada   Lovelace  ", "Message"));
 
@@ -53,32 +59,51 @@ class ContactSubmissionApplicationServiceTest {
         assertThat(saved.createdAt()).isEqualTo(CLOCK_INSTANT.truncatedTo(ChronoUnit.MICROS));
         assertThat(saved.updatedAt()).isEqualTo(saved.createdAt());
         assertThat(saved.createdAt().getNano() % 1_000).isZero();
+        assertThat(verification.contexts).containsExactly(HumanVerificationContext.CONTACT_HOME);
+    }
+
+    @Test
+    void verifiesContactPageWithContactPageContext() {
+        FakeRepository repository = new FakeRepository();
+        FakeHumanVerificationService verification = new FakeHumanVerificationService();
+        ContactSubmissionApplicationService service = service(repository, verification);
+
+        service.submit(command(ContactSource.CONTACT_PAGE, UUID.randomUUID(), "Ada", "Message", "contact-token"));
+
+        assertThat(verification.contexts).containsExactly(HumanVerificationContext.CONTACT_PAGE);
     }
 
     @Test
     void replaysExistingSubmissionWithSameNormalizedPayload() {
         FakeRepository repository = new FakeRepository();
-        ContactSubmissionApplicationService service = service(repository);
+        FakeHumanVerificationService verification = new FakeHumanVerificationService();
+        ContactSubmissionApplicationService service = service(repository, verification);
         SubmitContactSubmissionCommand first = command("Ada Lovelace", "Message");
         SubmitContactSubmissionResult created = service.submit(first);
 
-        SubmitContactSubmissionResult replay = service.submit(command(first.idempotencyKey(), "  Ada   Lovelace  ", "Message"));
+        SubmitContactSubmissionResult replay = service.submit(command(
+                first.idempotencyKey(), "  Ada   Lovelace  ", "Message", "second-token"));
 
         assertThat(replay.created()).isFalse();
         assertThat(replay.submissionId()).isEqualTo(created.submissionId());
         assertThat(replay.receivedAt()).isEqualTo(created.receivedAt());
         assertThat(repository.saveCalls).isEqualTo(1);
+        assertThat(verification.contexts).containsExactly(
+                HumanVerificationContext.CONTACT_HOME,
+                HumanVerificationContext.CONTACT_HOME);
     }
 
     @Test
     void rejectsSameKeyWithDifferentPayload() {
         FakeRepository repository = new FakeRepository();
-        ContactSubmissionApplicationService service = service(repository);
+        FakeHumanVerificationService verification = new FakeHumanVerificationService();
+        ContactSubmissionApplicationService service = service(repository, verification);
         UUID key = UUID.randomUUID();
         service.submit(command(key, "Ada", "Message"));
 
         assertThatThrownBy(() -> service.submit(command(key, "Ada", "Different")))
                 .isInstanceOf(IdempotencyConflictException.class);
+        assertThat(verification.contexts).hasSize(2);
     }
 
     @Test
@@ -126,45 +151,53 @@ class ContactSubmissionApplicationServiceTest {
     @Test
     void rejectsNameThatBecomesBlankAfterNormalizationBeforeRepositoryAccess() {
         FakeRepository repository = new FakeRepository();
-        ContactSubmissionApplicationService service = service(repository);
+        FakeHumanVerificationService verification = new FakeHumanVerificationService();
+        ContactSubmissionApplicationService service = service(repository, verification);
 
         assertThatThrownBy(() -> service.submit(command("\u00a0\u00a0", "Message")))
                 .isInstanceOf(ContactSubmissionValidationException.class);
         assertThat(repository.saveCalls).isZero();
         assertThat(repository.findByIdempotencyKeyCalls).isZero();
+        assertThat(verification.contexts).isEmpty();
     }
 
     @Test
     void rejectsMessageThatBecomesBlankAfterNormalizationBeforeRepositoryAccess() {
         FakeRepository repository = new FakeRepository();
-        ContactSubmissionApplicationService service = service(repository);
+        FakeHumanVerificationService verification = new FakeHumanVerificationService();
+        ContactSubmissionApplicationService service = service(repository, verification);
 
         assertThatThrownBy(() -> service.submit(command("Ada", "\u2007\u2007")))
                 .isInstanceOf(ContactSubmissionValidationException.class);
         assertThat(repository.saveCalls).isZero();
         assertThat(repository.findByIdempotencyKeyCalls).isZero();
+        assertThat(verification.contexts).isEmpty();
     }
 
     @Test
     void rejectsEmailInvalidAfterNormalizationBeforeRepositoryAccess() {
         FakeRepository repository = new FakeRepository();
-        ContactSubmissionApplicationService service = service(repository);
+        FakeHumanVerificationService verification = new FakeHumanVerificationService();
+        ContactSubmissionApplicationService service = service(repository, verification);
 
         assertThatThrownBy(() -> service.submit(commandWithEmail("  invalid-email  ")))
                 .isInstanceOf(ContactSubmissionValidationException.class);
         assertThat(repository.saveCalls).isZero();
         assertThat(repository.findByIdempotencyKeyCalls).isZero();
+        assertThat(verification.contexts).isEmpty();
     }
 
     @Test
     void rejectsLengthInvalidAfterNormalizationBeforeSaving() {
         FakeRepository repository = new FakeRepository();
-        ContactSubmissionApplicationService service = service(repository);
+        FakeHumanVerificationService verification = new FakeHumanVerificationService();
+        ContactSubmissionApplicationService service = service(repository, verification);
 
         assertThatThrownBy(() -> service.submit(command(" " + "A".repeat(121) + " ", "Message")))
                 .isInstanceOf(ContactSubmissionValidationException.class);
         assertThat(repository.saveCalls).isZero();
         assertThat(repository.findByIdempotencyKeyCalls).isZero();
+        assertThat(verification.contexts).isEmpty();
     }
 
     @Test
@@ -179,8 +212,57 @@ class ContactSubmissionApplicationServiceTest {
         assertThat(repository.saveCalls).isEqualTo(1);
     }
 
+    @Test
+    void rejectedHumanVerificationStopsBeforeRepositoryAccess() {
+        FakeRepository repository = new FakeRepository();
+        FakeHumanVerificationService verification = new FakeHumanVerificationService();
+        verification.reject = true;
+        ContactSubmissionApplicationService service = service(repository, verification);
+
+        assertThatThrownBy(() -> service.submit(command("Ada", "Message")))
+                .isInstanceOf(HumanVerificationRejectedException.class);
+        assertThat(repository.saveCalls).isZero();
+        assertThat(repository.findByIdempotencyKeyCalls).isZero();
+    }
+
+    @Test
+    void unavailableHumanVerificationStopsBeforeRepositoryAccess() {
+        FakeRepository repository = new FakeRepository();
+        FakeHumanVerificationService verification = new FakeHumanVerificationService();
+        verification.unavailable = true;
+        ContactSubmissionApplicationService service = service(repository, verification);
+
+        assertThatThrownBy(() -> service.submit(command("Ada", "Message")))
+                .isInstanceOf(HumanVerificationUnavailableException.class);
+        assertThat(repository.saveCalls).isZero();
+        assertThat(repository.findByIdempotencyKeyCalls).isZero();
+    }
+
+    @Test
+    void tokenDoesNotAffectPayloadHashOrStoredSubmission() {
+        FakeRepository repository = new FakeRepository();
+        ContactSubmissionApplicationService service = service(repository);
+        UUID key = UUID.randomUUID();
+
+        SubmitContactSubmissionResult created = service.submit(command(key, "Ada", "Message", "first-token"));
+        SubmitContactSubmissionResult replay = service.submit(command(key, "Ada", "Message", "second-token"));
+
+        ContactSubmission saved = repository.saved.values().iterator().next();
+        assertThat(replay.created()).isFalse();
+        assertThat(replay.submissionId()).isEqualTo(created.submissionId());
+        assertThat(repository.saveCalls).isEqualTo(1);
+        assertThat(saved.payloadHash()).hasSize(64);
+        assertThat(saved.toString()).doesNotContain("first-token", "second-token");
+    }
+
     private ContactSubmissionApplicationService service(FakeRepository repository) {
-        return new ContactSubmissionApplicationService(repository, normalizer, hasher, VALIDATOR, clock);
+        return service(repository, new FakeHumanVerificationService());
+    }
+
+    private ContactSubmissionApplicationService service(
+            FakeRepository repository,
+            FakeHumanVerificationService verification) {
+        return new ContactSubmissionApplicationService(repository, normalizer, hasher, VALIDATOR, verification, clock);
     }
 
     private ContactSubmission existingSubmission(SubmitContactSubmissionCommand command) {
@@ -207,15 +289,29 @@ class ContactSubmissionApplicationServiceTest {
     }
 
     private SubmitContactSubmissionCommand command(UUID idempotencyKey, String name, String message) {
+        return command(idempotencyKey, name, message, "test-turnstile-token");
+    }
+
+    private SubmitContactSubmissionCommand command(UUID idempotencyKey, String name, String message, String token) {
+        return command(ContactSource.HOME, idempotencyKey, name, message, token);
+    }
+
+    private SubmitContactSubmissionCommand command(
+            ContactSource source,
+            UUID idempotencyKey,
+            String name,
+            String message,
+            String token) {
         return new SubmitContactSubmissionCommand(
                 idempotencyKey,
-                ContactSource.HOME,
+                source,
                 ContactLocale.ES,
                 name,
                 "ada@example.test",
                 null,
                 null,
-                message);
+                message,
+                token);
     }
 
     private SubmitContactSubmissionCommand commandWithEmail(String email) {
@@ -227,7 +323,8 @@ class ContactSubmissionApplicationServiceTest {
                 email,
                 null,
                 null,
-                "Message");
+                "Message",
+                "test-turnstile-token");
     }
 
     private static class FakeRepository implements ContactSubmissionRepository {
@@ -262,6 +359,24 @@ class ContactSubmissionApplicationServiceTest {
                 return Optional.empty();
             }
             return Optional.ofNullable(saved.get(idempotencyKey));
+        }
+    }
+
+    private static class FakeHumanVerificationService implements HumanVerificationService {
+
+        private final java.util.List<HumanVerificationContext> contexts = new ArrayList<>();
+        private boolean reject;
+        private boolean unavailable;
+
+        @Override
+        public void verify(String token, HumanVerificationContext context) {
+            contexts.add(context);
+            if (reject) {
+                throw new HumanVerificationRejectedException();
+            }
+            if (unavailable) {
+                throw new HumanVerificationUnavailableException();
+            }
         }
     }
 }

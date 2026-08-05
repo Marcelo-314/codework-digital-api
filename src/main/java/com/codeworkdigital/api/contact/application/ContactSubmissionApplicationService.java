@@ -3,6 +3,9 @@ package com.codeworkdigital.api.contact.application;
 import com.codeworkdigital.api.contact.domain.ContactStatus;
 import com.codeworkdigital.api.contact.domain.ContactSubmission;
 import com.codeworkdigital.api.contact.domain.ContactSubmissionRepository;
+import com.codeworkdigital.api.contact.domain.ContactSource;
+import com.codeworkdigital.api.verification.application.HumanVerificationContext;
+import com.codeworkdigital.api.verification.application.HumanVerificationService;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
 import java.time.Clock;
@@ -20,6 +23,7 @@ public class ContactSubmissionApplicationService {
     private final ContactSubmissionNormalizer normalizer;
     private final ContactSubmissionPayloadHasher hasher;
     private final Validator validator;
+    private final HumanVerificationService humanVerificationService;
     private final Clock clock;
 
     public ContactSubmissionApplicationService(
@@ -27,17 +31,20 @@ public class ContactSubmissionApplicationService {
             ContactSubmissionNormalizer normalizer,
             ContactSubmissionPayloadHasher hasher,
             Validator validator,
+            HumanVerificationService humanVerificationService,
             Clock clock) {
         this.repository = repository;
         this.normalizer = normalizer;
         this.hasher = hasher;
         this.validator = validator;
+        this.humanVerificationService = humanVerificationService;
         this.clock = clock;
     }
 
     public SubmitContactSubmissionResult submit(SubmitContactSubmissionCommand command) {
         NormalizedContactSubmissionPayload payload = normalizer.normalize(command);
         validate(payload);
+        humanVerificationService.verify(command.turnstileToken(), contextFor(payload.source()));
         String payloadHash = hasher.hash(payload);
 
         return repository.findByIdempotencyKey(command.idempotencyKey())
@@ -89,5 +96,12 @@ public class ContactSubmissionApplicationService {
 
     private SubmitContactSubmissionResult resultForCreated(ContactSubmission created) {
         return new SubmitContactSubmissionResult(created.id(), created.status(), created.createdAt(), true);
+    }
+
+    private HumanVerificationContext contextFor(ContactSource source) {
+        return switch (source) {
+            case HOME -> HumanVerificationContext.CONTACT_HOME;
+            case CONTACT_PAGE -> HumanVerificationContext.CONTACT_PAGE;
+        };
     }
 }

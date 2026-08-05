@@ -12,5 +12,11 @@ public record SubmitContactSubmissionCommand(
         String email,
         String phone,
         String companyOrProject,
-        String message) {
+        String message,
+        String turnstileToken) {
+
+    @Override
+    public String toString() {
+        return "SubmitContactSubmissionCommand[redacted]";
+    }
 }

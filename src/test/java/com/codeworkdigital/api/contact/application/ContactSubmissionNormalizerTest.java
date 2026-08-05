@@ -10,6 +10,8 @@ import org.junit.jupiter.api.Test;
 
 class ContactSubmissionNormalizerTest {
 
+    private static final String TEST_TURNSTILE_TOKEN = "test-turnstile-token";
+
     private final ContactSubmissionNormalizer normalizer = new ContactSubmissionNormalizer();
 
     @Test
@@ -83,7 +85,8 @@ class ContactSubmissionNormalizerTest {
                 "ada@example.test",
                 null,
                 null,
-                message);
+                message,
+                TEST_TURNSTILE_TOKEN);
     }
 
     private SubmitContactSubmissionCommand commandWithEmail(String email) {
@@ -95,7 +98,8 @@ class ContactSubmissionNormalizerTest {
                 email,
                 null,
                 null,
-                "Message");
+                "Message",
+                TEST_TURNSTILE_TOKEN);
     }
 
     private SubmitContactSubmissionCommand commandWithOptionalFields(String phone, String companyOrProject) {
@@ -107,6 +111,7 @@ class ContactSubmissionNormalizerTest {
                 "ada@example.test",
                 phone,
                 companyOrProject,
-                "Message");
+                "Message",
+                TEST_TURNSTILE_TOKEN);
     }
 }

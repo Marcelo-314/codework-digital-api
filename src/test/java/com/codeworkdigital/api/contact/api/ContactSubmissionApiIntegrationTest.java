@@ -3,12 +3,16 @@ package com.codeworkdigital.api.contact.api;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.codeworkdigital.api.support.PostgreSqlIntegrationTestSupport;
+import com.codeworkdigital.api.verification.application.HumanVerificationContext;
+import com.codeworkdigital.api.verification.application.HumanVerificationRejectedException;
+import com.codeworkdigital.api.verification.application.HumanVerificationService;
+import com.codeworkdigital.api.verification.application.HumanVerificationUnavailableException;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -16,7 +20,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.annotation.DirtiesContext;
 import tools.jackson.databind.ObjectMapper;
@@ -36,9 +43,13 @@ class ContactSubmissionApiIntegrationTest extends PostgreSqlIntegrationTestSuppo
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private FakeHumanVerificationService humanVerificationService;
+
     @BeforeEach
     void cleanDatabase() {
         jdbcClient.sql("DELETE FROM contact_submission").update();
+        humanVerificationService.reset();
     }
 
     @Test
@@ -51,12 +62,13 @@ class ContactSubmissionApiIntegrationTest extends PostgreSqlIntegrationTestSuppo
         assertThat(body.get("submissionId")).isNotNull();
         assertThat(body.get("status")).isEqualTo("RECEIVED");
         assertThat(body.get("receivedAt")).isNotNull();
-        assertThat(response.body()).doesNotContain("payloadHash", "idempotencyKey", "Ada", "ada@example.test");
+        assertThat(response.body()).doesNotContain("payloadHash", "idempotencyKey", "turnstileToken", "Ada", "ada@example.test");
 
         Map<String, Object> row = onlyRow();
         assertThat(row.get("source")).isEqualTo("HOME");
         assertThat(row.get("locale")).isEqualTo("ES");
         assertThat(row.get("status")).isEqualTo("RECEIVED");
+        assertThat(humanVerificationService.contexts).containsExactly(HumanVerificationContext.CONTACT_HOME);
     }
 
     @Test
@@ -65,6 +77,7 @@ class ContactSubmissionApiIntegrationTest extends PostgreSqlIntegrationTestSuppo
 
         assertThat(response.statusCode()).isEqualTo(201);
         assertThat(onlyRow().get("source")).isEqualTo("CONTACT_PAGE");
+        assertThat(humanVerificationService.contexts).containsExactly(HumanVerificationContext.CONTACT_PAGE);
     }
 
     @Test
@@ -77,7 +90,8 @@ class ContactSubmissionApiIntegrationTest extends PostgreSqlIntegrationTestSuppo
                   "email": "Ada.Example@Example.TEST",
                   "phone": "  +39  123   456  ",
                   "companyOrProject": "   ",
-                  "message": "  Line one\\r\\nLine  two\\rLine three  "
+                  "message": "  Line one\\r\\nLine  two\\rLine three  ",
+                  "turnstileToken": "valid-token"
                 }
                 """;
 
@@ -95,7 +109,7 @@ class ContactSubmissionApiIntegrationTest extends PostgreSqlIntegrationTestSuppo
     @Test
     void replaysSameKeyAndSameNormalizedPayload() throws Exception {
         String key = UUID.randomUUID().toString();
-        HttpResponse<String> first = post(key, validJson("HOME", "es", "Project message"));
+        HttpResponse<String> first = post(key, validJson("HOME", "es", "Project message", "valid-token"));
         String replayPayload = """
                 {
                   "source": "HOME",
@@ -104,7 +118,8 @@ class ContactSubmissionApiIntegrationTest extends PostgreSqlIntegrationTestSuppo
                   "email": "ada@example.test",
                   "phone": null,
                   "companyOrProject": null,
-                  "message": "Project message"
+                  "message": "Project message",
+                  "turnstileToken": "valid-token-replay"
                 }
                 """;
 
@@ -117,6 +132,9 @@ class ContactSubmissionApiIntegrationTest extends PostgreSqlIntegrationTestSuppo
         assertThat(secondBody.get("submissionId")).isEqualTo(firstBody.get("submissionId"));
         assertThat(secondBody.get("receivedAt")).isEqualTo(firstBody.get("receivedAt"));
         assertThat(rowCount()).isEqualTo(1);
+        assertThat(humanVerificationService.contexts).containsExactly(
+                HumanVerificationContext.CONTACT_HOME,
+                HumanVerificationContext.CONTACT_HOME);
     }
 
     @Test
@@ -124,7 +142,7 @@ class ContactSubmissionApiIntegrationTest extends PostgreSqlIntegrationTestSuppo
         String key = UUID.randomUUID().toString();
         HttpResponse<String> first = post(key, validJson("HOME", "es", "Original message"));
 
-        HttpResponse<String> conflict = post(key, validJson("HOME", "es", "Different message"));
+        HttpResponse<String> conflict = post(key, validJson("HOME", "es", "Different message", "valid-token-conflict"));
 
         assertThat(first.statusCode()).isEqualTo(201);
         assertThat(conflict.statusCode()).isEqualTo(409);
@@ -132,6 +150,7 @@ class ContactSubmissionApiIntegrationTest extends PostgreSqlIntegrationTestSuppo
         assertThat(json(conflict).get("code")).isEqualTo("idempotency_conflict");
         assertThat(rowCount()).isEqualTo(1);
         assertThat(onlyRow().get("message")).isEqualTo("Original message");
+        assertThat(humanVerificationService.contexts).hasSize(2);
     }
 
     @Test
@@ -169,6 +188,63 @@ class ContactSubmissionApiIntegrationTest extends PostgreSqlIntegrationTestSuppo
         assertProblem(abbreviated, 400, "invalid_idempotency_key", "/api/v1/contact-submissions");
         assertProblem(spaced, 400, "invalid_idempotency_key", "/api/v1/contact-submissions");
         assertThat(rowCount()).isZero();
+    }
+
+    @Test
+    void rejectsMissingTurnstileToken() throws Exception {
+        String body = validJson("HOME", "es", "Project message")
+                .replace(",\n  \"turnstileToken\": \"valid-token\"", "");
+
+        HttpResponse<String> response = post(UUID.randomUUID().toString(), body);
+
+        assertValidationError(response, "turnstileToken", "required");
+        assertThat(humanVerificationService.contexts).isEmpty();
+    }
+
+    @Test
+    void rejectsBlankTurnstileToken() throws Exception {
+        String body = validJson("HOME", "es", "Project message")
+                .replace("\"turnstileToken\": \"valid-token\"", "\"turnstileToken\": \"   \"");
+
+        HttpResponse<String> response = post(UUID.randomUUID().toString(), body);
+
+        assertValidationError(response, "turnstileToken", "required");
+        assertThat(humanVerificationService.contexts).isEmpty();
+    }
+
+    @Test
+    void rejectsOversizedTurnstileTokenBeforeVerification() throws Exception {
+        String body = validJson("HOME", "es", "Project message")
+                .replace("valid-token", "t".repeat(2049));
+
+        HttpResponse<String> response = post(UUID.randomUUID().toString(), body);
+
+        assertValidationError(response, "turnstileToken", "invalid_length");
+        assertThat(humanVerificationService.contexts).isEmpty();
+    }
+
+    @Test
+    void rejectedHumanVerificationDoesNotPersist() throws Exception {
+        String body = validJson("HOME", "es", "Project message")
+                .replace("valid-token", "rejected-token");
+
+        HttpResponse<String> response = post(UUID.randomUUID().toString(), body);
+
+        assertProblem(response, 400, "human_verification_failed", "/api/v1/contact-submissions");
+        assertThat(rowCount()).isZero();
+        assertThat(response.body()).doesNotContain("rejected-token", "invalid-input-response", "hostname", "action");
+    }
+
+    @Test
+    void unavailableHumanVerificationReturnsServiceUnavailableAndDoesNotPersist() throws Exception {
+        String body = validJson("HOME", "es", "Project message")
+                .replace("valid-token", "unavailable-token");
+
+        HttpResponse<String> response = post(UUID.randomUUID().toString(), body);
+
+        assertProblem(response, 503, "human_verification_unavailable", "/api/v1/contact-submissions");
+        assertThat(rowCount()).isZero();
+        assertThat(response.body()).doesNotContain("unavailable-token", "hostname", "action");
     }
 
     @Test
@@ -325,7 +401,7 @@ class ContactSubmissionApiIntegrationTest extends PostgreSqlIntegrationTestSuppo
         assertThat(body.get("detail")).isNotNull();
         assertThat(body.get("instance")).isEqualTo("/api/v1/contact-submissions");
         assertThat(body.get("code")).isEqualTo("validation_failed");
-        assertThat(response.body()).doesNotContain("stackTrace", "exception", "rejectedValue", "invalid-email");
+        assertThat(response.body()).doesNotContain("stackTrace", "exception", "rejectedValue", "invalid-email", "valid-token");
     }
 
     @Test
@@ -336,6 +412,7 @@ class ContactSubmissionApiIntegrationTest extends PostgreSqlIntegrationTestSuppo
         assertThat(response.body()).doesNotContain(
                 "payloadHash",
                 "idempotencyKey",
+                "turnstileToken",
                 "name",
                 "email",
                 "phone",
@@ -405,6 +482,10 @@ class ContactSubmissionApiIntegrationTest extends PostgreSqlIntegrationTestSuppo
     }
 
     private String validJson(String source, String locale, String message) {
+        return validJson(source, locale, message, "valid-token");
+    }
+
+    private String validJson(String source, String locale, String message, String token) {
         return """
                 {
                   "source": "%s",
@@ -413,9 +494,10 @@ class ContactSubmissionApiIntegrationTest extends PostgreSqlIntegrationTestSuppo
                   "email": "ada@example.test",
                   "phone": null,
                   "companyOrProject": null,
-                  "message": "%s"
+                  "message": "%s",
+                  "turnstileToken": "%s"
                 }
-                """.formatted(source, locale, message);
+                """.formatted(source, locale, message, token);
     }
 
     @SuppressWarnings("unchecked")
@@ -441,5 +523,35 @@ class ContactSubmissionApiIntegrationTest extends PostgreSqlIntegrationTestSuppo
 
     private int rowCount() {
         return jdbcClient.sql("SELECT count(*) FROM contact_submission").query(Integer.class).single();
+    }
+
+    @TestConfiguration
+    static class HumanVerificationTestConfiguration {
+
+        @Bean
+        @Primary
+        FakeHumanVerificationService fakeHumanVerificationService() {
+            return new FakeHumanVerificationService();
+        }
+    }
+
+    static class FakeHumanVerificationService implements HumanVerificationService {
+
+        private final List<HumanVerificationContext> contexts = new ArrayList<>();
+
+        @Override
+        public void verify(String token, HumanVerificationContext context) {
+            contexts.add(context);
+            if ("rejected-token".equals(token)) {
+                throw new HumanVerificationRejectedException();
+            }
+            if ("unavailable-token".equals(token)) {
+                throw new HumanVerificationUnavailableException();
+            }
+        }
+
+        void reset() {
+            contexts.clear();
+        }
     }
 }

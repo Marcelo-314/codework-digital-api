@@ -19,3 +19,13 @@ management:
   endpoint:
     health:
       show-details: never
+
+cwd:
+  turnstile:
+    secret-key: ${TURNSTILE_SECRET_KEY}
+    siteverify-url: ${TURNSTILE_SITEVERIFY_URL:https://challenges.cloudflare.com/turnstile/v0/siteverify}
+    allowed-hostnames: ${TURNSTILE_ALLOWED_HOSTNAMES}
+    home-action: ${TURNSTILE_HOME_ACTION:contact_home}
+    contact-page-action: ${TURNSTILE_CONTACT_PAGE_ACTION:contact_page}
+    connect-timeout: ${TURNSTILE_CONNECT_TIMEOUT:2s}
+    request-timeout: ${TURNSTILE_REQUEST_TIMEOUT:4s}

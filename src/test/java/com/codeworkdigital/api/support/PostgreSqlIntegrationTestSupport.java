@@ -20,5 +20,12 @@ public abstract class PostgreSqlIntegrationTestSupport {
         registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
         registry.add("spring.datasource.username", POSTGRES::getUsername);
         registry.add("spring.datasource.password", POSTGRES::getPassword);
+        registry.add("cwd.turnstile.secret-key", () -> "test-secret-not-real");
+        registry.add("cwd.turnstile.siteverify-url", () -> "http://localhost:9/siteverify");
+        registry.add("cwd.turnstile.allowed-hostnames", () -> "localhost");
+        registry.add("cwd.turnstile.home-action", () -> "contact_home");
+        registry.add("cwd.turnstile.contact-page-action", () -> "contact_page");
+        registry.add("cwd.turnstile.connect-timeout", () -> "100ms");
+        registry.add("cwd.turnstile.request-timeout", () -> "200ms");
     }
 }

@@ -4,6 +4,8 @@ import com.codeworkdigital.api.contact.api.InvalidIdempotencyKeyException;
 import com.codeworkdigital.api.contact.api.UnsupportedContactValueException;
 import com.codeworkdigital.api.contact.application.ContactSubmissionValidationException;
 import com.codeworkdigital.api.contact.application.IdempotencyConflictException;
+import com.codeworkdigital.api.verification.application.HumanVerificationRejectedException;
+import com.codeworkdigital.api.verification.application.HumanVerificationUnavailableException;
 import jakarta.validation.ConstraintViolation;
 import java.net.URI;
 import java.util.Comparator;
@@ -63,6 +65,22 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     ResponseEntity<Object> handleDataAccess(DataAccessException exception, WebRequest request) {
         return problem(HttpStatus.INTERNAL_SERVER_ERROR, "persistence_error",
                 "Persistence error", "The request could not be persisted.", request);
+    }
+
+    @ExceptionHandler(HumanVerificationRejectedException.class)
+    ResponseEntity<Object> handleHumanVerificationRejected(
+            HumanVerificationRejectedException exception,
+            WebRequest request) {
+        return problem(HttpStatus.BAD_REQUEST, "human_verification_failed",
+                "Human verification failed", "Human verification was not accepted. Complete the challenge again.", request);
+    }
+
+    @ExceptionHandler(HumanVerificationUnavailableException.class)
+    ResponseEntity<Object> handleHumanVerificationUnavailable(
+            HumanVerificationUnavailableException exception,
+            WebRequest request) {
+        return problem(HttpStatus.SERVICE_UNAVAILABLE, "human_verification_unavailable",
+                "Human verification unavailable", "Human verification is temporarily unavailable. Try again later.", request);
     }
 
     @Override
