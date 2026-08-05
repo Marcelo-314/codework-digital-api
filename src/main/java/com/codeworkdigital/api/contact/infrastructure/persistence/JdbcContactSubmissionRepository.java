@@ -93,7 +93,11 @@ public class JdbcContactSubmissionRepository implements ContactSubmissionReposit
 
     @Override
     public Optional<ContactSubmission> findById(UUID id) {
-        return jdbcClient.sql("SELECT " + COLUMNS + " FROM contact_submission WHERE id = :id")
+        return jdbcClient.sql("""
+                        SELECT %s
+                        FROM contact_submission
+                        WHERE id = :id
+                        """.formatted(COLUMNS))
                 .param("id", id)
                 .query(this::mapRow)
                 .optional();
@@ -101,7 +105,11 @@ public class JdbcContactSubmissionRepository implements ContactSubmissionReposit
 
     @Override
     public Optional<ContactSubmission> findByIdempotencyKey(UUID idempotencyKey) {
-        return jdbcClient.sql("SELECT " + COLUMNS + " FROM contact_submission WHERE idempotency_key = :idempotency_key")
+        return jdbcClient.sql("""
+                        SELECT %s
+                        FROM contact_submission
+                        WHERE idempotency_key = :idempotency_key
+                        """.formatted(COLUMNS))
                 .param("idempotency_key", idempotencyKey)
                 .query(this::mapRow)
                 .optional();
