@@ -136,11 +136,11 @@ This endpoint is ready for local validation and controlled technical sandbox use
 
 ## Render sandbox
 
-This repository includes `render.yaml` as a Render Blueprint contract for an ephemeral sandbox. It explicitly defines project `cwd-contact-sandbox`, environment `Sandbox`, a Docker Web Service, and PostgreSQL in Frankfurt. The Blueprint is the canonical source for that structure, deploys branch `develop`, and uses `/actuator/health` for health checks.
+This repository includes `render.yaml` as the Render Blueprint contract for the internal sandbox. It explicitly defines project `cwd-contact-sandbox`, environment `Sandbox`, a Docker Web Service, and PostgreSQL in Frankfurt. The Blueprint is the canonical source for that structure, deploys branch `develop`, and uses `/actuator/health` for health checks.
 
 The Blueprint does not contain secrets and does not create resources by itself in this commit. Database credentials are referenced from Render PostgreSQL with `fromDatabase`. `RENDER_DATABASE_URL` receives Render's internal `postgresql://user:password@host:port/database` connection string, and the Docker entrypoint derives the JDBC URL required by pgJDBC without printing credentials. Direct `SPRING_DATASOURCE_URL=jdbc:postgresql://...` remains supported for local and non-Render runs.
 
-The current empty manual Render project must be verified and removed immediately before later provisioning unless the Blueprint preview proves Render will adopt it without duplicating it. `Deploy Blueprint` starts provisioning and the first deploy. `autoDeployTrigger: off` controls the Web Service's Git autodeploys; Blueprint Auto Sync is separate and should be set to No in Render after creation to require Manual Sync.
+The sandbox resources are Blueprint-managed. Changes to `render.yaml` should be reviewed and merged before a manual Blueprint sync is performed from Render. `autoDeployTrigger: off` controls the Web Service's Git autodeploys; Blueprint Auto Sync is separate and should remain set to No so infrastructure changes require Manual Sync.
 
 See [docs/render-sandbox.md](docs/render-sandbox.md) for provisioning, smoke, rollback, and teardown guidance.
 

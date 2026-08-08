@@ -2,9 +2,9 @@
 
 ## Purpose
 
-This document describes the disposable Render sandbox declared by `render.yaml`. It is a deployment contract for validating the backend after merge to `develop`; it does not mean Render resources already exist.
+This document describes the internal Render sandbox declared by `render.yaml`. The Blueprint is the deployment contract for the existing sandbox resources managed from branch `develop`.
 
-No Render login, API key, external resource creation, DNS, custom domain, frontend integration, or production configuration is part of this increment.
+Repository changes do not perform a Render sync, deploy, API call, DNS change, custom domain setup, frontend integration, or production configuration. Apply Blueprint changes manually from Render only after review and merge.
 
 ## Defined Resources
 
@@ -21,8 +21,8 @@ Both resources must remain in `frankfurt`. Keeping the Web Service and PostgreSQ
 
 ## Plans And Limitations
 
-- Web Service plan: `free`
-- PostgreSQL plan: `free`
+- Web Service plan: `starter`
+- PostgreSQL plan: `basic-256mb`
 - PostgreSQL major version: `17`
 - PostgreSQL database name: `cwd_api`
 - PostgreSQL user: `cwd_api`
@@ -30,31 +30,19 @@ Both resources must remain in `frankfurt`. Keeping the Web Service and PostgreSQ
 - Web Service auto deploy: disabled with `autoDeployTrigger: off`
 - Preview environments: disabled with `previews.generation: off`
 
-The web filesystem is ephemeral. The free PostgreSQL database has 1 GB of storage, no backups, and expires after 30 days. The free Web Service can suspend after inactivity, so the first request after suspension can experience cold start latency. These resources are not production.
+The web filesystem is ephemeral. The paid PostgreSQL instance removes the Free-tier expiration, while storage remains intentionally undeclared in the Blueprint unless a separate storage decision is reviewed. These resources are internal sandbox infrastructure, not production.
 
-## Existing Empty Render Project
+## Existing Render Resources
 
-The Render dashboard currently has a manually created organizational placeholder:
+The Render dashboard currently has Blueprint-managed sandbox resources:
 
 - Workspace: `Marcelo's workspace`
 - Project: `cwd-contact-sandbox`
 - Environment: `Sandbox`
-- Current state: Services = 0, Env Groups = 0, no Web Service, no PostgreSQL, no applied Blueprint
+- Web Service: `cwd-api-sandbox`
+- PostgreSQL: `cwd-api-sandbox-db`
 
-This repository cannot guarantee that Render will adopt that manually created empty project only because the names match the Blueprint. Use this deterministic procedure during the later provisioning increment:
-
-1. After this branch is merged, open the manual project in Render.
-2. Immediately before provisioning, verify Services = 0, Env Groups = 0, no PostgreSQL exists, no resource was created by someone else, and no configuration needs to be preserved.
-3. If it is still completely empty, delete the manual project from Render and confirm its empty environment disappears too. No resources should be deleted because none should exist.
-4. Go to New -> Blueprint.
-5. Connect this repository.
-6. Select branch `develop`.
-7. Use the root `render.yaml`.
-8. Review the Blueprint preview.
-9. Confirm Render proposes exactly project `cwd-contact-sandbox`, environment `Sandbox`, Web Service `cwd-api-sandbox`, and PostgreSQL `cwd-api-sandbox-db`.
-10. Cancel without deploying if the preview shows a suffix, an additional project, an additional environment, ungrouped resources, duplicate services or databases, a different region, a different plan, or any unexpected existing resource.
-
-Hard stop operationally if the manual project is no longer empty. Do not delete it, do not apply the Blueprint, inventory the resources, and review the state before continuing. This repository correction does not delete or modify anything in Render.
+Do not change these resources manually before updating the Blueprint. Review and merge repository changes first, then use Manual Sync from the Blueprint so the dashboard stays aligned with version control.
 
 ## Required Variables
 
@@ -128,13 +116,11 @@ https://frontend-sandbox.example.test
 
 Do not use a wildcard, production origin, invented future Render URL, or broader CORS setting to simplify tests. `curl` smoke requests can omit the `Origin` header.
 
-## Blueprint Creation
+## Blueprint Updates
 
-After this branch is merged into `develop` and the empty manual project procedure above is complete, create a Render Blueprint from the repository root `render.yaml`.
+After a `render.yaml` change is reviewed and merged into `develop`, open the existing Blueprint in Render and review the pending diff before syncing. No infrastructure change occurs during review. When you run Manual Sync, Render applies the Blueprint updates and may redeploy affected resources.
 
-The Blueprint creation screen first shows a preview of the changes. No infrastructure is created during that preview. When you click `Deploy Blueprint`, Render applies the Blueprint, provisions PostgreSQL, builds the Docker image, starts the first Web Service deploy, and runs the health check.
-
-During creation, provide the `sync: false` values in the Render Dashboard. Do not paste values into the repository. Confirm in the preview:
+For updates that require prompted `sync: false` values, provide them in the Render Dashboard. Do not paste values into the repository. Confirm in the preview:
 
 - Project is `cwd-contact-sandbox`.
 - Environment is `Sandbox`.
@@ -151,7 +137,7 @@ Two separate controls apply:
 - Web Service auto deploy is configured in YAML with `autoDeployTrigger: off`. Ordinary commits to `develop` should not trigger the Web Service's Git deploy automatically; later service deploys should be manual.
 - Blueprint Auto Sync is a separate Render Blueprint setting. If Auto Sync remains enabled, later changes to `render.yaml` on the linked branch can synchronize infrastructure and redeploy affected resources. `autoDeployTrigger: off` does not disable Blueprint Auto Sync.
 
-After the initial `Deploy Blueprint` finishes:
+After the Blueprint is managed by Render:
 
 1. Open the Blueprint settings in Render.
 2. Set Auto Sync = No.
@@ -160,19 +146,19 @@ After the initial `Deploy Blueprint` finishes:
 
 Manual Deploy and Manual Sync are not equivalent. Manual Deploy operates on the Web Service deploy lifecycle for code/image changes. Manual Sync reapplies the Blueprint contract and can change resource configuration.
 
-## First Deploy Validation
+## Sync Validation
 
-When `Deploy Blueprint` is clicked, verify the first provisioning and deploy sequence in order:
+When a Manual Sync changes the sandbox instance types, verify the update sequence in order:
 
-1. PostgreSQL begins provisioning in Frankfurt.
-2. The Web Service begins its Docker build.
-3. Docker uses `./Dockerfile`.
+1. Web Service remains in Frankfurt and changes to `starter`.
+2. PostgreSQL remains in Frankfurt and changes to `basic-256mb`.
+3. Docker still uses `./Dockerfile`.
 4. The image keeps `ENTRYPOINT ["/app/docker-entrypoint.sh"]`.
 5. The container keeps `CMD ["java", "-jar", "/app/cwd-api.jar"]`.
-6. Render injects the `fromDatabase` values.
+6. Render keeps injecting the `fromDatabase` values.
 7. The entrypoint derives the JDBC URL.
 8. Spring Boot starts.
-9. Flyway applies `V1__create_contact_submission.sql`.
+9. Flyway validates or applies migrations as needed.
 10. `/actuator/health` returns HTTP 200 and status `UP`.
 11. Render marks the deploy live or otherwise satisfactory.
 

@@ -9,7 +9,7 @@ projects:
           - type: web
             name: cwd-api-sandbox
             runtime: docker
-            plan: free
+            plan: starter
             region: frankfurt
             branch: develop
             autoDeployTrigger: off
@@ -49,7 +49,7 @@ projects:
 
         databases:
           - name: cwd-api-sandbox-db
-            plan: free
+            plan: basic-256mb
             region: frankfurt
             postgresMajorVersion: "17"
             databaseName: cwd_api
