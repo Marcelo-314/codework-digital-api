@@ -21,6 +21,7 @@ import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -359,6 +360,20 @@ class ContactSubmissionApplicationServiceTest {
                 return Optional.empty();
             }
             return Optional.ofNullable(saved.get(idempotencyKey));
+        }
+
+        @Override
+        public List<ContactSubmission> findPageByCreatedAtDesc(int limit, long offset) {
+            return saved.values().stream()
+                    .sorted((left, right) -> right.createdAt().compareTo(left.createdAt()))
+                    .skip(offset)
+                    .limit(limit)
+                    .toList();
+        }
+
+        @Override
+        public long count() {
+            return saved.size();
         }
     }
 

@@ -37,6 +37,8 @@ SPRING_DATASOURCE_PASSWORD
 TURNSTILE_SECRET_KEY
 TURNSTILE_ALLOWED_HOSTNAMES
 CWD_ALLOWED_ORIGINS
+CWD_ADMIN_USERNAME
+CWD_ADMIN_PASSWORD
 ```
 
 Optional Turnstile settings:
@@ -55,6 +57,8 @@ SERVER_MAX_HTTP_REQUEST_HEADER_SIZE
 Default Turnstile actions are `contact_home` and `contact_page`. Hostnames are matched exactly; configure every allowed hostname explicitly. Development can use Cloudflare's public test keys, but do not store production secrets in this repository.
 
 `CWD_ALLOWED_ORIGINS` is required and must contain exact comma-separated browser origins, for example `http://localhost:3000`. Wildcards and origin patterns are not accepted. CORS is configured only for `POST /api/v1/contact-submissions`, does not allow credentials, and authorizes only the request headers needed by the contact contract. Requests without an `Origin` header continue to work for local tools and server-to-server validation.
+
+`CWD_ADMIN_USERNAME` and `CWD_ADMIN_PASSWORD` are required external credentials for the read-only administrative API. Do not commit real values or print them in logs.
 
 Windows PowerShell:
 
@@ -134,6 +138,17 @@ API responses under `/api/` include defensive no-store, nosniff, no-referrer, an
 
 This endpoint is ready for local validation and controlled technical sandbox use. It must not be considered fully published in production yet: rate limiting, Render configuration, frontend integration, trusted proxy policy, and operational hardening are still pending.
 
+## Admin contact submissions API
+
+Endpoint:
+
+```text
+GET /api/admin/contact-submissions?page=0&size=20
+Authorization: Basic <credentials>
+```
+
+This read-only endpoint requires `CWD_ADMIN_USERNAME` and `CWD_ADMIN_PASSWORD`. Responses are paginated, ordered by `createdAt` descending, and intentionally exclude payload hashes, idempotency keys, Turnstile internals, and secrets.
+
 ## Render sandbox
 
 This repository includes `render.yaml` as the Render Blueprint contract for the internal sandbox. It explicitly defines project `cwd-contact-sandbox`, environment `Sandbox`, a Docker Web Service, and PostgreSQL in Frankfurt. The Blueprint is the canonical source for that structure, deploys branch `develop`, and uses `/actuator/health` for health checks.
@@ -157,9 +172,9 @@ docker build --tag cwd-api:http-hardening .
 Run the container:
 
 ```bash
-docker run --rm --publish 18081:18081 --env PORT=18081 --env SPRING_DATASOURCE_URL=jdbc:postgresql://host.docker.internal:5432/cwd_api --env SPRING_DATASOURCE_USERNAME=local_user_placeholder --env SPRING_DATASOURCE_PASSWORD=local_password_placeholder --env TURNSTILE_SECRET_KEY=local_turnstile_secret_placeholder --env TURNSTILE_ALLOWED_HOSTNAMES=localhost --env CWD_ALLOWED_ORIGINS=http://localhost:3000 cwd-api:http-hardening
+docker run --rm --publish 18081:18081 --env PORT=18081 --env SPRING_DATASOURCE_URL=jdbc:postgresql://host.docker.internal:5432/cwd_api --env SPRING_DATASOURCE_USERNAME=local_user_placeholder --env SPRING_DATASOURCE_PASSWORD=local_password_placeholder --env TURNSTILE_SECRET_KEY=local_turnstile_secret_placeholder --env TURNSTILE_ALLOWED_HOSTNAMES=localhost --env CWD_ALLOWED_ORIGINS=http://localhost:3000 --env CWD_ADMIN_USERNAME=local_admin_placeholder --env CWD_ADMIN_PASSWORD=local_admin_password_placeholder cwd-api:http-hardening
 ```
 
 ## Not Implemented
 
-This foundation does not include rate limiting, sandbox provisioning, remote smoke validation, DNS or custom domain setup, production Render configuration, authentication, frontend integration, administrative APIs, or CI/CD.
+This foundation does not include rate limiting, remote smoke validation, DNS or custom domain setup, production Render configuration, frontend integration, admin write workflows, or CI/CD.

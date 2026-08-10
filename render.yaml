@@ -40,6 +40,10 @@ projects:
                 sync: false
               - key: CWD_ALLOWED_ORIGINS
                 sync: false
+              - key: CWD_ADMIN_USERNAME
+                sync: false
+              - key: CWD_ADMIN_PASSWORD
+                sync: false
               - key: CWD_CORS_MAX_AGE
                 value: 1h
               - key: CWD_MAX_CONTACT_REQUEST_BYTES

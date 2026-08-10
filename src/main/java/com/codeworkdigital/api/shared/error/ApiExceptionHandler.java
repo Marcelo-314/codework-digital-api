@@ -4,6 +4,7 @@ import com.codeworkdigital.api.contact.api.InvalidIdempotencyKeyException;
 import com.codeworkdigital.api.contact.api.UnsupportedContactValueException;
 import com.codeworkdigital.api.contact.application.ContactSubmissionValidationException;
 import com.codeworkdigital.api.contact.application.IdempotencyConflictException;
+import com.codeworkdigital.api.contact.application.InvalidAdminPaginationException;
 import com.codeworkdigital.api.shared.web.RequestBodyTooLargeException;
 import com.codeworkdigital.api.verification.application.HumanVerificationRejectedException;
 import com.codeworkdigital.api.verification.application.HumanVerificationUnavailableException;
@@ -38,6 +39,15 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     ResponseEntity<Object> handleInvalidIdempotencyKey(InvalidIdempotencyKeyException exception, WebRequest request) {
         return problem(HttpStatus.BAD_REQUEST, "invalid_idempotency_key",
                 "Invalid idempotency key", "The Idempotency-Key header must be a canonical UUID.", request);
+    }
+
+    @ExceptionHandler(InvalidAdminPaginationException.class)
+    ResponseEntity<Object> handleInvalidAdminPagination(
+            InvalidAdminPaginationException exception,
+            WebRequest request) {
+        ProblemDetail problem = validationProblem(request);
+        problem.setProperty("errors", List.of(new ValidationError(exception.field(), "invalid")));
+        return response(problem, HttpStatus.BAD_REQUEST);
     }
 
     @ExceptionHandler(IdempotencyConflictException.class)

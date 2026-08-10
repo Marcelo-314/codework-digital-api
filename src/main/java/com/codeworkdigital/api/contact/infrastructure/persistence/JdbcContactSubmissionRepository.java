@@ -9,6 +9,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -113,6 +114,28 @@ public class JdbcContactSubmissionRepository implements ContactSubmissionReposit
                 .param("idempotency_key", idempotencyKey)
                 .query(this::mapRow)
                 .optional();
+    }
+
+    @Override
+    public List<ContactSubmission> findPageByCreatedAtDesc(int limit, long offset) {
+        return jdbcClient.sql("""
+                        SELECT %s
+                        FROM contact_submission
+                        ORDER BY created_at DESC, id DESC
+                        LIMIT :limit
+                        OFFSET :offset
+                        """.formatted(COLUMNS))
+                .param("limit", limit)
+                .param("offset", offset)
+                .query(this::mapRow)
+                .list();
+    }
+
+    @Override
+    public long count() {
+        return jdbcClient.sql("SELECT count(*) FROM contact_submission")
+                .query(Long.class)
+                .single();
     }
 
     private ContactSubmission mapRow(ResultSet resultSet, int rowNumber) throws SQLException {

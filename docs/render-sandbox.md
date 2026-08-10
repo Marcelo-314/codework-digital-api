@@ -59,6 +59,8 @@ These values are prompted or synchronized manually and must not be committed:
 - `TURNSTILE_HOME_ACTION`
 - `TURNSTILE_CONTACT_PAGE_ACTION`
 - `CWD_ALLOWED_ORIGINS`
+- `CWD_ADMIN_USERNAME`
+- `CWD_ADMIN_PASSWORD`
 
 These explicit non-secret values are declared in the Blueprint:
 
