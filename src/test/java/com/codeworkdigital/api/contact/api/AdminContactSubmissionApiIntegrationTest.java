@@ -65,6 +65,7 @@ class AdminContactSubmissionApiIntegrationTest extends PostgreSqlIntegrationTest
 
         assertThat(response.statusCode()).isEqualTo(401);
         assertThat(response.headers().firstValue("www-authenticate")).isPresent();
+        assertNoSessionCookie(response);
     }
 
     @Test
@@ -72,6 +73,15 @@ class AdminContactSubmissionApiIntegrationTest extends PostgreSqlIntegrationTest
         HttpResponse<String> response = getAdmin(basicAuth(ADMIN_USERNAME, "wrong-password"), 0, 20);
 
         assertThat(response.statusCode()).isEqualTo(401);
+        assertNoSessionCookie(response);
+    }
+
+    @Test
+    void arbitrarySessionCookieDoesNotAuthenticateAdminRequest() throws Exception {
+        HttpResponse<String> response = getAdminWithCookie("JSESSIONID=client-provided", 0, 20);
+
+        assertThat(response.statusCode()).isEqualTo(401);
+        assertNoSessionCookie(response);
     }
 
     @Test
@@ -86,6 +96,7 @@ class AdminContactSubmissionApiIntegrationTest extends PostgreSqlIntegrationTest
 
         assertThat(response.statusCode()).isEqualTo(200);
         assertThat(response.headers().firstValue("content-type")).contains("application/json");
+        assertNoSessionCookie(response);
         assertThat(body.get("page")).isEqualTo(0);
         assertThat(body.get("size")).isEqualTo(2);
         assertThat(body.get("totalElements")).isEqualTo(3);
@@ -176,6 +187,14 @@ class AdminContactSubmissionApiIntegrationTest extends PostgreSqlIntegrationTest
         assertThat(humanVerificationService.contexts).containsExactly(HumanVerificationContext.CONTACT_HOME);
     }
 
+    @Test
+    void healthEndpointRemainsPublic() throws Exception {
+        HttpResponse<String> response = get("/actuator/health");
+
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat(response.body()).contains("\"status\":\"UP\"");
+    }
+
     private HttpResponse<String> getAdmin(String authorization, int page, int size)
             throws IOException, InterruptedException {
         HttpRequest.Builder builder = HttpRequest.newBuilder()
@@ -185,6 +204,24 @@ class AdminContactSubmissionApiIntegrationTest extends PostgreSqlIntegrationTest
             builder.header("Authorization", authorization);
         }
         return httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+    }
+
+    private HttpResponse<String> getAdminWithCookie(String cookie, int page, int size)
+            throws IOException, InterruptedException {
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(uri("/api/admin/contact-submissions?page=" + page + "&size=" + size))
+                .header("Cookie", cookie)
+                .GET()
+                .build();
+        return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    }
+
+    private HttpResponse<String> get(String path) throws IOException, InterruptedException {
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(uri(path))
+                .GET()
+                .build();
+        return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
     }
 
     private HttpResponse<String> postPublic(String idempotencyKey, String body)
@@ -269,6 +306,11 @@ class AdminContactSubmissionApiIntegrationTest extends PostgreSqlIntegrationTest
             assertThat(entry.get("field")).isEqualTo(field);
             assertThat(entry.get("code")).isEqualTo("invalid");
         });
+    }
+
+    private void assertNoSessionCookie(HttpResponse<String> response) {
+        assertThat(response.headers().allValues("set-cookie"))
+                .noneSatisfy(value -> assertThat(value).contains("JSESSIONID"));
     }
 
     private int rowCount() {
