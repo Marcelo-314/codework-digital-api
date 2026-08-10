@@ -30,6 +30,9 @@ management:
       show-details: never
 
 cwd:
+  admin:
+    username: ${CWD_ADMIN_USERNAME}
+    password: ${CWD_ADMIN_PASSWORD}
   web:
     allowed-origins: ${CWD_ALLOWED_ORIGINS}
     cors-max-age: ${CWD_CORS_MAX_AGE:1h}
