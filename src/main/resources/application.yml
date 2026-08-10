@@ -6,17 +6,18 @@ spring:
       fail-on-unknown-properties: true
   lifecycle:
     timeout-per-shutdown-phase: 20s
+  web:
+    error:
+      include-exception: false
+      include-message: never
+      include-binding-errors: never
+      include-stacktrace: never
 
 server:
   address: 0.0.0.0
   port: ${PORT:8080}
   shutdown: graceful
   max-http-request-header-size: ${SERVER_MAX_HTTP_REQUEST_HEADER_SIZE:8KB}
-  error:
-    include-exception: false
-    include-message: never
-    include-binding-errors: never
-    include-stacktrace: never
 
 management:
   endpoints:
