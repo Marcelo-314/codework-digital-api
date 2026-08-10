@@ -93,6 +93,7 @@ class AdminContactSubmissionApiIntegrationTest extends PostgreSqlIntegrationTest
         assertThat(content).hasSize(2);
         assertThat(ids(content)).containsExactly(newest.toString(), middle.toString());
         assertThat(ids(content)).doesNotContain(oldest.toString());
+        assertThat(((Map<?, ?>) content.getFirst()).get("locale")).isEqualTo("es");
         assertThat(response.body()).doesNotContain(
                 "payloadHash",
                 "payload_hash",
@@ -100,6 +101,22 @@ class AdminContactSubmissionApiIntegrationTest extends PostgreSqlIntegrationTest
                 "turnstile",
                 "secret",
                 VALID_HASH);
+    }
+
+    @Test
+    void adminSubmissionsWithSameCreatedAtAreOrderedByIdDesc() throws Exception {
+        Instant sameTimestamp = Instant.parse("2026-08-04T10:00:00Z");
+        UUID lowerId = UUID.fromString("00000000-0000-0000-0000-000000000001");
+        UUID higherId = UUID.fromString("00000000-0000-0000-0000-000000000002");
+        insertSubmission(lowerId, "Ada Lovelace", "ada@example.test", sameTimestamp);
+        insertSubmission(higherId, "Grace Hopper", "grace@example.test", sameTimestamp);
+
+        HttpResponse<String> response = getAdmin(basicAuth(ADMIN_USERNAME, ADMIN_PASSWORD), 0, 20);
+        Map<String, Object> body = json(response);
+        List<?> content = (List<?>) body.get("content");
+
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat(ids(content)).containsExactly(higherId.toString(), lowerId.toString());
     }
 
     @Test
@@ -183,6 +200,11 @@ class AdminContactSubmissionApiIntegrationTest extends PostgreSqlIntegrationTest
 
     private UUID insertSubmission(String name, String email, Instant timestamp) {
         UUID id = UUID.randomUUID();
+        insertSubmission(id, name, email, timestamp);
+        return id;
+    }
+
+    private void insertSubmission(UUID id, String name, String email, Instant timestamp) {
         jdbcClient.sql("""
                         INSERT INTO contact_submission (
                             id,
@@ -223,7 +245,6 @@ class AdminContactSubmissionApiIntegrationTest extends PostgreSqlIntegrationTest
                 .param("created_at", OffsetDateTime.ofInstant(timestamp, ZoneOffset.UTC))
                 .param("updated_at", OffsetDateTime.ofInstant(timestamp, ZoneOffset.UTC))
                 .update();
-        return id;
     }
 
     @SuppressWarnings("unchecked")

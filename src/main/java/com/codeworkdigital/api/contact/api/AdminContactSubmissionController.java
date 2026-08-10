@@ -1,8 +1,8 @@
 package com.codeworkdigital.api.contact.api;
 
-import com.codeworkdigital.api.contact.domain.ContactSubmission;
-import com.codeworkdigital.api.contact.domain.ContactSubmissionRepository;
-import java.util.List;
+import com.codeworkdigital.api.contact.application.AdminContactSubmissionQueryService;
+import com.codeworkdigital.api.contact.application.AdminContactSubmissionSummary;
+import com.codeworkdigital.api.contact.application.ListAdminContactSubmissionsQuery;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -15,63 +15,38 @@ public class AdminContactSubmissionController {
 
     private static final int DEFAULT_PAGE = 0;
     private static final int DEFAULT_SIZE = 20;
-    private static final int MAX_SIZE = 100;
 
-    private final ContactSubmissionRepository repository;
+    private final AdminContactSubmissionQueryService queryService;
 
-    public AdminContactSubmissionController(ContactSubmissionRepository repository) {
-        this.repository = repository;
+    public AdminContactSubmissionController(AdminContactSubmissionQueryService queryService) {
+        this.queryService = queryService;
     }
 
     @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
     public AdminContactSubmissionsPageResponse list(
             @RequestParam(defaultValue = "" + DEFAULT_PAGE) int page,
             @RequestParam(defaultValue = "" + DEFAULT_SIZE) int size) {
-        int boundedSize = validateAndBoundSize(size);
-        long offset = offsetFor(page, boundedSize);
-        long totalElements = repository.count();
-        List<AdminContactSubmissionResponse> content = repository.findPageByCreatedAtDesc(boundedSize, offset)
-                .stream()
-                .map(this::toResponse)
-                .toList();
+        var result = queryService.list(new ListAdminContactSubmissionsQuery(page, size));
 
         return new AdminContactSubmissionsPageResponse(
-                content,
-                page,
-                boundedSize,
-                totalElements,
-                totalPages(totalElements, boundedSize));
+                result.content().stream().map(this::toResponse).toList(),
+                result.page(),
+                result.size(),
+                result.totalElements(),
+                result.totalPages());
     }
 
-    private int validateAndBoundSize(int size) {
-        if (size < 1) {
-            throw new InvalidAdminPaginationException("size");
-        }
-        return Math.min(size, MAX_SIZE);
-    }
-
-    private long offsetFor(int page, int size) {
-        if (page < 0) {
-            throw new InvalidAdminPaginationException("page");
-        }
-        return Math.multiplyExact((long) page, size);
-    }
-
-    private int totalPages(long totalElements, int size) {
-        return (int) Math.ceil((double) totalElements / size);
-    }
-
-    private AdminContactSubmissionResponse toResponse(ContactSubmission submission) {
+    private AdminContactSubmissionResponse toResponse(AdminContactSubmissionSummary submission) {
         return new AdminContactSubmissionResponse(
                 submission.id(),
-                submission.source().name(),
-                submission.locale().name().toLowerCase(),
+                submission.source(),
+                submission.locale(),
                 submission.name(),
                 submission.email(),
                 submission.phone(),
                 submission.companyOrProject(),
                 submission.message(),
-                submission.status().name(),
+                submission.status(),
                 submission.createdAt(),
                 submission.updatedAt());
     }

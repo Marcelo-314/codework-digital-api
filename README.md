@@ -177,4 +177,4 @@ docker run --rm --publish 18081:18081 --env PORT=18081 --env SPRING_DATASOURCE_U
 
 ## Not Implemented
 
-This foundation does not include rate limiting, sandbox provisioning, remote smoke validation, DNS or custom domain setup, production Render configuration, authentication, frontend integration, administrative APIs, or CI/CD.
+This foundation does not include rate limiting, remote smoke validation, DNS or custom domain setup, production Render configuration, frontend integration, admin write workflows, or CI/CD.

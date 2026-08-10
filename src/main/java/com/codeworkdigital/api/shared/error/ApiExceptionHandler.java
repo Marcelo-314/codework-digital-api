@@ -1,10 +1,10 @@
 package com.codeworkdigital.api.shared.error;
 
-import com.codeworkdigital.api.contact.api.InvalidAdminPaginationException;
 import com.codeworkdigital.api.contact.api.InvalidIdempotencyKeyException;
 import com.codeworkdigital.api.contact.api.UnsupportedContactValueException;
 import com.codeworkdigital.api.contact.application.ContactSubmissionValidationException;
 import com.codeworkdigital.api.contact.application.IdempotencyConflictException;
+import com.codeworkdigital.api.contact.application.InvalidAdminPaginationException;
 import com.codeworkdigital.api.shared.web.RequestBodyTooLargeException;
 import com.codeworkdigital.api.verification.application.HumanVerificationRejectedException;
 import com.codeworkdigital.api.verification.application.HumanVerificationUnavailableException;

@@ -1,4 +1,4 @@
-package com.codeworkdigital.api.contact.api;
+package com.codeworkdigital.api.contact.application;
 
 public class InvalidAdminPaginationException extends RuntimeException {
 
