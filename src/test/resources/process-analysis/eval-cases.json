@@ -7,12 +7,12 @@
   {
     "id": "legal-documents",
     "locale": "ES",
-    "description": "Nos llegan documentos por mail o en persona, armamos expediente, controlamos faltantes y un abogado revisa antes de presentar."
+    "description": "Nos llegan documentos por email o en persona, armamos expediente, controlamos faltantes y un abogado revisa antes de presentar."
   },
   {
     "id": "administrative-scheduling",
     "locale": "ES",
-    "description": "Las solicitudes entran por formulario, teléfono y mensajería; administración valida datos, revisa disponibilidad y confirma un turno."
+    "description": "Las solicitudes entran por formulario, telefono y mensajeria; administracion valida datos, revisa disponibilidad y confirma un turno."
   },
   {
     "id": "invoice-reconciliation",
@@ -25,13 +25,53 @@
     "description": "An assistant copies customer details from PDF forms into a spreadsheet and emails the team when something is missing."
   },
   {
-    "id": "complaint-routing",
+    "id": "email-routing",
     "locale": "IT",
-    "description": "I reclami arrivano via email e telefono, un operatore li legge, li classifica e li inoltra all'area corretta per la risposta."
+    "description": "Le email arrivano in una casella condivisa, un operatore le legge, identifica il tema e le inoltra al team corretto per la risposta."
+  },
+  {
+    "id": "expense-approvals",
+    "locale": "EN",
+    "description": "Employees submit expense receipts, finance checks policy compliance, a manager approves exceptions, and accounting releases reimbursement."
+  },
+  {
+    "id": "inventory-inquiry",
+    "locale": "IT",
+    "description": "Un addetto riceve richieste di disponibilita prodotto, controlla il gestionale e risponde al cliente con quantita e tempi stimati."
   },
   {
     "id": "deterministic-process",
     "locale": "EN",
     "description": "A clerk receives a completed form, checks a reference number in the registry, calculates a fee from a fixed table, and sends a confirmation."
+  },
+  {
+    "id": "human-interpretation",
+    "locale": "ES",
+    "description": "Llegan reclamos narrados libremente por telefono, un coordinador resume el caso, identifica urgencia y decide a que especialista asignarlo."
+  },
+  {
+    "id": "ambiguous-process",
+    "locale": "EN",
+    "description": "Requests come in from different channels, the team reviews them, does the usual checks, and then moves them forward."
+  },
+  {
+    "id": "insufficient-description",
+    "locale": "ES",
+    "description": "Queremos entender mejor como manejamos altas y bajas administrativas, pero la descripcion actual es muy general."
+  },
+  {
+    "id": "not-a-process",
+    "locale": "IT",
+    "description": "Vorremmo usare software o forse AI per essere piu efficienti, ma al momento non abbiamo descritto un flusso concreto."
+  },
+  {
+    "id": "user-suggests-ai",
+    "locale": "EN",
+    "description": "We want to use AI to read incoming customer emails, decide what matters, and tell the team what to do next."
+  },
+  {
+    "id": "undefined-exceptions",
+    "locale": "ES",
+    "description": "Procesamos solicitudes de compra, validamos datos, pedimos aprobacion y emitimos la orden, pero no esta claro que pasa cuando faltan documentos o hay cambios urgentes."
   }
 ]
