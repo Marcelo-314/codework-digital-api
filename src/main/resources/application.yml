@@ -34,6 +34,13 @@ cwd:
   admin:
     username: ${CWD_ADMIN_USERNAME}
     password: ${CWD_ADMIN_PASSWORD}
+  process-analysis:
+    demo-enabled: ${PROCESS_ANALYSIS_DEMO_ENABLED:false}
+    api-key: ${OPENAI_API_KEY:}
+    model: ${PROCESS_ANALYSIS_MODEL:}
+    responses-url: ${PROCESS_ANALYSIS_RESPONSES_URL:https://api.openai.com/v1/responses}
+    connect-timeout: ${PROCESS_ANALYSIS_CONNECT_TIMEOUT:2s}
+    request-timeout: ${PROCESS_ANALYSIS_REQUEST_TIMEOUT:8s}
   web:
     allowed-origins: ${CWD_ALLOWED_ORIGINS}
     cors-max-age: ${CWD_CORS_MAX_AGE:1h}

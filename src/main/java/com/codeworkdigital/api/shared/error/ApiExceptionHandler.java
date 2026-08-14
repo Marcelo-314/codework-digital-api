@@ -5,6 +5,10 @@ import com.codeworkdigital.api.contact.api.UnsupportedContactValueException;
 import com.codeworkdigital.api.contact.application.ContactSubmissionValidationException;
 import com.codeworkdigital.api.contact.application.IdempotencyConflictException;
 import com.codeworkdigital.api.contact.application.InvalidAdminPaginationException;
+import com.codeworkdigital.api.processanalysis.api.UnsupportedProcessAnalysisValueException;
+import com.codeworkdigital.api.processanalysis.application.InvalidProcessAnalysisModelResponseException;
+import com.codeworkdigital.api.processanalysis.application.ProcessAnalysisUnavailableException;
+import com.codeworkdigital.api.processanalysis.application.ProcessAnalysisValidationException;
 import com.codeworkdigital.api.shared.web.RequestBodyTooLargeException;
 import com.codeworkdigital.api.verification.application.HumanVerificationRejectedException;
 import com.codeworkdigital.api.verification.application.HumanVerificationUnavailableException;
@@ -63,9 +67,27 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         return response(problem, HttpStatus.BAD_REQUEST);
     }
 
+    @ExceptionHandler(UnsupportedProcessAnalysisValueException.class)
+    ResponseEntity<Object> handleUnsupportedProcessAnalysisValue(
+            UnsupportedProcessAnalysisValueException exception,
+            WebRequest request) {
+        ProblemDetail problem = validationProblem(request);
+        problem.setProperty("errors", List.of(new ValidationError(exception.field(), "unsupported_value")));
+        return response(problem, HttpStatus.BAD_REQUEST);
+    }
+
     @ExceptionHandler(ContactSubmissionValidationException.class)
     ResponseEntity<Object> handleContactSubmissionValidation(
             ContactSubmissionValidationException exception,
+            WebRequest request) {
+        ProblemDetail problem = validationProblem(request);
+        problem.setProperty("errors", violationErrors(exception.violations()));
+        return response(problem, HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(ProcessAnalysisValidationException.class)
+    ResponseEntity<Object> handleProcessAnalysisValidation(
+            ProcessAnalysisValidationException exception,
             WebRequest request) {
         ProblemDetail problem = validationProblem(request);
         problem.setProperty("errors", violationErrors(exception.violations()));
@@ -92,6 +114,24 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
             WebRequest request) {
         return problem(HttpStatus.SERVICE_UNAVAILABLE, "human_verification_unavailable",
                 "Human verification unavailable", "Human verification is temporarily unavailable. Try again later.", request);
+    }
+
+    @ExceptionHandler(ProcessAnalysisUnavailableException.class)
+    ResponseEntity<Object> handleProcessAnalysisUnavailable(
+            ProcessAnalysisUnavailableException exception,
+            WebRequest request) {
+        return problem(HttpStatus.SERVICE_UNAVAILABLE, "process_analysis_unavailable",
+                "Process analysis unavailable", "Process analysis is temporarily unavailable. Try again later.", request);
+    }
+
+    @ExceptionHandler(InvalidProcessAnalysisModelResponseException.class)
+    ResponseEntity<Object> handleInvalidProcessAnalysisModelResponse(
+            InvalidProcessAnalysisModelResponseException exception,
+            WebRequest request) {
+        return problem(HttpStatus.BAD_GATEWAY, "invalid_model_response",
+                "Invalid process analysis response",
+                "Process analysis returned an invalid structured result. Try again later.",
+                request);
     }
 
     @ExceptionHandler(RequestBodyTooLargeException.class)

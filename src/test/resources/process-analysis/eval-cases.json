@@ -1,0 +1,37 @@
+[
+  {
+    "id": "messaging-orders",
+    "locale": "ES",
+    "description": "Recibimos pedidos por WhatsApp, una persona interpreta el mensaje, consulta stock y luego coordina entrega."
+  },
+  {
+    "id": "legal-documents",
+    "locale": "ES",
+    "description": "Nos llegan documentos por mail o en persona, armamos expediente, controlamos faltantes y un abogado revisa antes de presentar."
+  },
+  {
+    "id": "administrative-scheduling",
+    "locale": "ES",
+    "description": "Las solicitudes entran por formulario, teléfono y mensajería; administración valida datos, revisa disponibilidad y confirma un turno."
+  },
+  {
+    "id": "invoice-reconciliation",
+    "locale": "EN",
+    "description": "Finance receives supplier invoices by email, checks them against purchase orders, validates totals, and escalates discrepancies for approval."
+  },
+  {
+    "id": "manual-data-copy",
+    "locale": "EN",
+    "description": "An assistant copies customer details from PDF forms into a spreadsheet and emails the team when something is missing."
+  },
+  {
+    "id": "complaint-routing",
+    "locale": "IT",
+    "description": "I reclami arrivano via email e telefono, un operatore li legge, li classifica e li inoltra all'area corretta per la risposta."
+  },
+  {
+    "id": "deterministic-process",
+    "locale": "EN",
+    "description": "A clerk receives a completed form, checks a reference number in the registry, calculates a fee from a fixed table, and sends a confirmation."
+  }
+]
