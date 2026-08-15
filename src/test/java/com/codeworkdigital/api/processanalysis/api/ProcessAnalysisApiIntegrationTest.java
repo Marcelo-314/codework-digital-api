@@ -14,14 +14,13 @@ import com.codeworkdigital.api.processanalysis.application.ProcessUnderstanding;
 import com.codeworkdigital.api.processanalysis.application.ProcessUnderstandingStage;
 import com.codeworkdigital.api.shared.error.ApiExceptionHandler;
 import com.codeworkdigital.api.shared.security.ApiSecurityConfiguration;
-import com.codeworkdigital.api.shared.web.ApiWebProperties;
+import com.codeworkdigital.api.shared.web.ApiCorsConfiguration;
 import com.codeworkdigital.api.shared.web.ContactRequestBodyLimitFilter;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -42,10 +41,16 @@ import tools.jackson.databind.ObjectMapper;
         properties = {
                 "cwd.admin.username=admin-test",
                 "cwd.admin.password=admin-test-password-not-real",
+                "cwd.web.allowed-origins=http://localhost:3000",
+                "cwd.web.cors-max-age=1h",
+                "cwd.web.max-contact-request-bytes=65536",
                 "management.health.db.enabled=false",
                 "spring.flyway.enabled=false"
         })
 class ProcessAnalysisApiIntegrationTest {
+
+    private static final String ALLOWED_ORIGIN = "http://localhost:3000";
+    private static final String DISALLOWED_ORIGIN = "http://malicious.example.test";
 
     private final HttpClient httpClient = HttpClient.newHttpClient();
 
@@ -84,6 +89,49 @@ class ProcessAnalysisApiIntegrationTest {
         assertThat(processAnalysisModelClient.lastCommand.description())
                 .isEqualTo("Recibimos pedidos por WhatsApp, verificamos stock y confirmamos entrega.");
         assertThat(response.body()).doesNotContain("openai", "prompt", "provider");
+    }
+
+    @Test
+    void allowedPreflightReturnsCorsAuthorizationWithoutAuthentication() throws Exception {
+        HttpResponse<String> response = options(ALLOWED_ORIGIN, "Content-Type");
+
+        assertThat(response.statusCode()).isBetween(200, 299);
+        assertThat(response.headers().firstValue("www-authenticate")).isEmpty();
+        assertThat(response.headers().firstValue("access-control-allow-origin")).contains(ALLOWED_ORIGIN);
+        assertThat(response.headers().firstValue("access-control-allow-methods")).hasValueSatisfying(value ->
+                assertThat(value).contains("POST"));
+        assertThat(response.headers().firstValue("access-control-allow-headers")).hasValueSatisfying(value ->
+                assertThat(value.toLowerCase()).contains("content-type"));
+        assertThat(response.headers().firstValue("access-control-max-age")).contains("3600");
+        assertThat(response.headers().firstValue("access-control-allow-credentials")).isEmpty();
+        assertThat(response.headers().firstValue("vary")).isPresent();
+        assertThat(processAnalysisModelClient.invocations).isZero();
+    }
+
+    @Test
+    void disallowedPreflightDoesNotAuthorizeCors() throws Exception {
+        HttpResponse<String> response = options(DISALLOWED_ORIGIN, "Content-Type");
+
+        assertThat(response.statusCode()).isEqualTo(403);
+        assertThat(response.headers().firstValue("access-control-allow-origin")).isEmpty();
+        assertThat(processAnalysisModelClient.invocations).isZero();
+    }
+
+    @Test
+    void allowedOriginPostIncludesExactCorsAuthorization() throws Exception {
+        HttpResponse<String> response = postWithOrigin(
+                """
+                {
+                  "description": "Recibimos pedidos por WhatsApp, verificamos stock y confirmamos entrega.",
+                  "locale": "ES"
+                }
+                """,
+                ALLOWED_ORIGIN);
+
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat(response.headers().firstValue("access-control-allow-origin")).contains(ALLOWED_ORIGIN);
+        assertThat(response.headers().firstValue("access-control-allow-credentials")).isEmpty();
+        assertThat(processAnalysisModelClient.invocations).isEqualTo(1);
     }
 
     @Test
@@ -214,6 +262,27 @@ class ProcessAnalysisApiIntegrationTest {
         return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
     }
 
+    private HttpResponse<String> postWithOrigin(String body, String origin) throws IOException, InterruptedException {
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create("http://localhost:" + port + "/api/labs/process-analysis"))
+                .header("Origin", origin)
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(body))
+                .build();
+        return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    }
+
+    private HttpResponse<String> options(String origin, String requestHeaders) throws IOException, InterruptedException {
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create("http://localhost:" + port + "/api/labs/process-analysis"))
+                .header("Origin", origin)
+                .header("Access-Control-Request-Method", "POST")
+                .header("Access-Control-Request-Headers", requestHeaders)
+                .method("OPTIONS", HttpRequest.BodyPublishers.noBody())
+                .build();
+        return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    }
+
     @SuppressWarnings("unchecked")
     private Map<String, Object> json(HttpResponse<String> response) throws Exception {
         return objectMapper.readValue(response.body(), Map.class);
@@ -229,6 +298,7 @@ class ProcessAnalysisApiIntegrationTest {
             ProcessAnalysisController.class,
             ProcessAnalysisApplicationService.class,
             ApiSecurityConfiguration.class,
+            ApiCorsConfiguration.class,
             ApiExceptionHandler.class,
             ContactRequestBodyLimitFilter.class,
             TestConfig.class
@@ -238,14 +308,6 @@ class ProcessAnalysisApiIntegrationTest {
 
     @TestConfiguration(proxyBeanMethods = false)
     static class TestConfig {
-
-        @Bean
-        ApiWebProperties apiWebProperties() {
-            return new ApiWebProperties(
-                    java.util.Set.of("http://localhost:3000"),
-                    Duration.ofHours(1),
-                    65536);
-        }
 
         @Bean
         FakeProcessAnalysisModelClient fakeProcessAnalysisModelClient() {

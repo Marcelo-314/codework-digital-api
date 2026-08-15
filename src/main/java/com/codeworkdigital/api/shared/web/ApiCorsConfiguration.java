@@ -12,6 +12,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 public class ApiCorsConfiguration implements WebMvcConfigurer {
 
     private static final String CONTACT_SUBMISSIONS_PATH = "/api/v1/contact-submissions";
+    private static final String PROCESS_ANALYSIS_PATH = "/api/labs/process-analysis";
 
     private final ApiWebProperties properties;
 
@@ -21,11 +22,27 @@ public class ApiCorsConfiguration implements WebMvcConfigurer {
 
     @Override
     public void addCorsMappings(CorsRegistry registry) {
-        registry.addMapping(CONTACT_SUBMISSIONS_PATH)
+        registerPostJsonCors(registry, CONTACT_SUBMISSIONS_PATH, "Idempotency-Key", HttpHeaders.ACCEPT);
+        registerPostJsonCors(registry, PROCESS_ANALYSIS_PATH);
+    }
+
+    private void registerPostJsonCors(CorsRegistry registry, String path, String... extraAllowedHeaders) {
+        registry.addMapping(path)
                 .allowedOrigins(properties.allowedOrigins().toArray(String[]::new))
                 .allowedMethods(HttpMethod.POST.name())
-                .allowedHeaders(HttpHeaders.CONTENT_TYPE, "Idempotency-Key", HttpHeaders.ACCEPT)
+                .allowedHeaders(allowedHeaders(extraAllowedHeaders))
                 .allowCredentials(false)
                 .maxAge(properties.corsMaxAge().toSeconds());
+    }
+
+    private static String[] allowedHeaders(String... extraAllowedHeaders) {
+        if (extraAllowedHeaders == null || extraAllowedHeaders.length == 0) {
+            return new String[] {HttpHeaders.CONTENT_TYPE};
+        }
+
+        String[] headers = new String[extraAllowedHeaders.length + 1];
+        headers[0] = HttpHeaders.CONTENT_TYPE;
+        System.arraycopy(extraAllowedHeaders, 0, headers, 1, extraAllowedHeaders.length);
+        return headers;
     }
 }
