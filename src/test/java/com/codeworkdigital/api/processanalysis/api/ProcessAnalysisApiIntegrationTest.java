@@ -12,6 +12,7 @@ import com.codeworkdigital.api.processanalysis.application.ProcessStageOperation
 import com.codeworkdigital.api.processanalysis.application.ProcessStageProvenance;
 import com.codeworkdigital.api.processanalysis.application.ProcessUnderstanding;
 import com.codeworkdigital.api.processanalysis.application.ProcessUnderstandingStage;
+import com.codeworkdigital.api.processanalysis.application.TechnologyFitAssessmentEvaluator;
 import com.codeworkdigital.api.shared.error.ApiExceptionHandler;
 import com.codeworkdigital.api.shared.security.ApiSecurityConfiguration;
 import com.codeworkdigital.api.shared.web.ApiCorsConfiguration;
@@ -85,6 +86,7 @@ class ProcessAnalysisApiIntegrationTest {
                 .isEqualTo("Recibimos pedidos por WhatsApp, verificamos stock y confirmamos entrega.");
         assertThat((List<?>) body.get("observations")).isNotEmpty();
         assertThat((List<?>) body.get("stages")).hasSize(2);
+        assertThat((List<?>) body.get("technologyFitAssessments")).hasSize(2);
         assertThat(processAnalysisModelClient.invocations).isEqualTo(1);
         assertThat(processAnalysisModelClient.lastCommand.description())
                 .isEqualTo("Recibimos pedidos por WhatsApp, verificamos stock y confirmamos entrega.");
@@ -297,6 +299,7 @@ class ProcessAnalysisApiIntegrationTest {
     @Import({
             ProcessAnalysisController.class,
             ProcessAnalysisApplicationService.class,
+            TechnologyFitAssessmentEvaluator.class,
             ApiSecurityConfiguration.class,
             ApiCorsConfiguration.class,
             ApiExceptionHandler.class,

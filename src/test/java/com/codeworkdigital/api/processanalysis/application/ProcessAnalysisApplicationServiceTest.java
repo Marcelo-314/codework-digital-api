@@ -11,11 +11,14 @@ import org.junit.jupiter.api.Test;
 class ProcessAnalysisApplicationServiceTest {
 
     private final Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
+    private final TechnologyFitAssessmentEvaluator technologyFitAssessmentEvaluator =
+            new TechnologyFitAssessmentEvaluator();
 
     @Test
     void validCommandCallsModelExactlyOnce() {
         RecordingProcessAnalysisModelClient modelClient = new RecordingProcessAnalysisModelClient();
-        ProcessAnalysisApplicationService service = new ProcessAnalysisApplicationService(validator, modelClient);
+        ProcessAnalysisApplicationService service =
+                new ProcessAnalysisApplicationService(validator, modelClient, technologyFitAssessmentEvaluator);
         AnalyzeProcessDescriptionCommand command = new AnalyzeProcessDescriptionCommand(
                 "Receive the request, validate stock, and confirm delivery.",
                 ProcessAnalysisLocale.EN);
@@ -25,12 +28,19 @@ class ProcessAnalysisApplicationServiceTest {
         assertThat(modelClient.invocations).isEqualTo(1);
         assertThat(modelClient.lastCommand).isEqualTo(command);
         assertThat(understanding.processDescription()).isEqualTo(command.description());
+        assertThat(understanding.technologyFitAssessments())
+                .singleElement()
+                .satisfies(assessment -> {
+                    assertThat(assessment.sourceStageId()).isEqualTo("receive-request");
+                    assertThat(assessment.approach()).isEqualTo(TechnologyFitApproach.TO_VALIDATE);
+                });
     }
 
     @Test
     void invalidCommandDoesNotCallModel() {
         RecordingProcessAnalysisModelClient modelClient = new RecordingProcessAnalysisModelClient();
-        ProcessAnalysisApplicationService service = new ProcessAnalysisApplicationService(validator, modelClient);
+        ProcessAnalysisApplicationService service =
+                new ProcessAnalysisApplicationService(validator, modelClient, technologyFitAssessmentEvaluator);
         AnalyzeProcessDescriptionCommand command = new AnalyzeProcessDescriptionCommand(
                 " ",
                 ProcessAnalysisLocale.ES);

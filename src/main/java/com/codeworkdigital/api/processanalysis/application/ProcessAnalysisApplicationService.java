@@ -10,17 +10,21 @@ public class ProcessAnalysisApplicationService {
 
     private final Validator validator;
     private final ProcessAnalysisModelClient modelClient;
+    private final TechnologyFitAssessmentEvaluator technologyFitAssessmentEvaluator;
 
     public ProcessAnalysisApplicationService(
             Validator validator,
-            ProcessAnalysisModelClient modelClient) {
+            ProcessAnalysisModelClient modelClient,
+            TechnologyFitAssessmentEvaluator technologyFitAssessmentEvaluator) {
         this.validator = validator;
         this.modelClient = modelClient;
+        this.technologyFitAssessmentEvaluator = technologyFitAssessmentEvaluator;
     }
 
     public ProcessUnderstanding analyze(AnalyzeProcessDescriptionCommand command) {
         validate(command);
-        return modelClient.analyze(command);
+        ProcessUnderstanding understanding = modelClient.analyze(command);
+        return understanding.withTechnologyFitAssessments(technologyFitAssessmentEvaluator.assess(understanding));
     }
 
     private void validate(AnalyzeProcessDescriptionCommand command) {

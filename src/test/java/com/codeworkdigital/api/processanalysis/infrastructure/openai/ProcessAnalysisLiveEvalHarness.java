@@ -8,6 +8,7 @@ import com.codeworkdigital.api.processanalysis.application.ProcessAnalysisUnavai
 import com.codeworkdigital.api.processanalysis.application.ProcessAnalysisValidationException;
 import com.codeworkdigital.api.processanalysis.application.ProcessUnderstanding;
 import com.codeworkdigital.api.processanalysis.application.ProcessUnderstandingStage;
+import com.codeworkdigital.api.processanalysis.application.TechnologyFitAssessmentEvaluator;
 import jakarta.validation.Validation;
 import jakarta.validation.ValidatorFactory;
 import java.nio.file.Path;
@@ -48,7 +49,8 @@ final class ProcessAnalysisLiveEvalHarness {
         try (ValidatorFactory validatorFactory = Validation.buildDefaultValidatorFactory()) {
             ProcessAnalysisApplicationService applicationService = new ProcessAnalysisApplicationService(
                     validatorFactory.getValidator(),
-                    modelClient);
+                    modelClient,
+                    new TechnologyFitAssessmentEvaluator());
 
             for (ProcessAnalysisEvalCase evalCase : cases) {
                 for (int runIndex = 1; runIndex <= settings.runs(); runIndex++) {
