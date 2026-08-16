@@ -3,6 +3,7 @@ package com.codeworkdigital.api.processanalysis.infrastructure.openai;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.codeworkdigital.api.processanalysis.application.ProcessAnalysisStatus;
 import com.codeworkdigital.api.processanalysis.application.ProcessAnalysisLocale;
 import com.codeworkdigital.api.processanalysis.application.ProcessStageInputNature;
 import com.codeworkdigital.api.processanalysis.application.ProcessStageOperationType;
@@ -104,6 +105,7 @@ class ProcessAnalysisLiveEvalHarnessTest {
                         1200L,
                         new com.codeworkdigital.api.processanalysis.application.ProcessUnderstanding(
                                 "Recibimos pedidos por WhatsApp.",
+                                ProcessAnalysisStatus.PROCESS_IDENTIFIED,
                                 List.of("Los pedidos llegan por mensajeria."),
                                 List.of("Puede haber una validacion manual antes de confirmar."),
                                 List.of("Donde vive el stock canonico?"),
@@ -146,7 +148,12 @@ class ProcessAnalysisLiveEvalHarnessTest {
         assertThat(runDirectory.resolve("summary.md")).exists();
         assertThat(runDirectory.resolve("results.json")).exists();
         assertThat(runDirectory.resolve("summary.md")).content()
-                .contains("Process Analysis Live Evaluation", "messaging-orders", "ambiguous-process", "invalid_model_response");
+                .contains(
+                        "Process Analysis Live Evaluation",
+                        "messaging-orders",
+                        "ambiguous-process",
+                        "invalid_model_response",
+                        "Analysis status: PROCESS_IDENTIFIED");
         assertThat(runDirectory.resolve("results.json")).content()
                 .contains("\"runId\" : \"20260814-120000-000\"", "\"failureCount\" : 1");
     }

@@ -84,6 +84,9 @@ final class ProcessAnalysisLiveEvalReportWriter {
             markdown.append("#### Run ").append(execution.runIndex()).append("\n\n");
             markdown.append("- Status: ").append(execution.success() ? "success" : "failure").append("\n");
             markdown.append("- Elapsed: ").append(execution.elapsedMillis()).append(" ms\n");
+            markdown.append("- Analysis status: ")
+                    .append(execution.analysisStatus() == null ? "n/a" : execution.analysisStatus())
+                    .append("\n");
             markdown.append("- Stage count: ").append(execution.stageCount()).append("\n");
             markdown.append("- Observation count: ").append(execution.observationCount()).append("\n");
             markdown.append("- Inference count: ").append(execution.inferenceCount()).append("\n");

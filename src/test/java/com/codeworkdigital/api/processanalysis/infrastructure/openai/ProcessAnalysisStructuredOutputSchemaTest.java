@@ -3,6 +3,7 @@ package com.codeworkdigital.api.processanalysis.infrastructure.openai;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.codeworkdigital.api.processanalysis.application.ProcessUnderstandingConstraints;
+import java.util.stream.StreamSupport;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -15,6 +16,8 @@ class ProcessAnalysisStructuredOutputSchemaTest {
     void schemaMatchesDomainConstraints() {
         JsonNode schema = ProcessAnalysisStructuredOutputSchema.parse(objectMapper);
 
+        assertThat(textValues(schema.at("/properties/analysisStatus/enum")))
+                .containsExactly("PROCESS_IDENTIFIED", "INSUFFICIENT_INFORMATION", "OUT_OF_SCOPE");
         assertThat(schema.at("/properties/observations/maxItems").intValue())
                 .isEqualTo(ProcessUnderstandingConstraints.MAX_OBSERVATIONS);
         assertThat(schema.at("/properties/observations/items/maxLength").intValue())
@@ -28,7 +31,7 @@ class ProcessAnalysisStructuredOutputSchemaTest {
         assertThat(schema.at("/properties/validationQuestions/items/maxLength").intValue())
                 .isEqualTo(ProcessUnderstandingConstraints.MAX_LIST_ITEM_LENGTH);
         assertThat(schema.at("/properties/stages/minItems").intValue())
-                .isEqualTo(ProcessUnderstandingConstraints.MIN_STAGES);
+                .isZero();
         assertThat(schema.at("/properties/stages/maxItems").intValue())
                 .isEqualTo(ProcessUnderstandingConstraints.MAX_STAGES);
         assertThat(schema.at("/properties/stages/items/properties/id/maxLength").intValue())
@@ -41,5 +44,13 @@ class ProcessAnalysisStructuredOutputSchemaTest {
                 .isEqualTo(ProcessUnderstandingConstraints.MAX_STAGE_DESCRIPTION_LENGTH);
         assertThat(schema.at("/properties/preliminaryAssessment/maxLength").intValue())
                 .isEqualTo(ProcessUnderstandingConstraints.MAX_PRELIMINARY_ASSESSMENT_LENGTH);
+        assertThat(textValues(schema.get("required")))
+                .contains("analysisStatus", "observations", "inferences", "validationQuestions", "stages", "preliminaryAssessment");
+    }
+
+    private java.util.List<String> textValues(JsonNode node) {
+        return StreamSupport.stream(node.spliterator(), false)
+                .map(JsonNode::textValue)
+                .toList();
     }
 }

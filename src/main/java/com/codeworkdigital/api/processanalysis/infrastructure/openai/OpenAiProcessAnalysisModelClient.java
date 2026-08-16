@@ -176,6 +176,7 @@ class OpenAiProcessAnalysisModelClient implements ProcessAnalysisModelClient {
         ProcessUnderstandingValidator.validate(sanitized);
         return new ProcessUnderstanding(
                 description,
+                sanitized.analysisStatus(),
                 sanitized.observations(),
                 sanitized.inferences(),
                 sanitized.validationQuestions(),
@@ -221,6 +222,7 @@ class OpenAiProcessAnalysisModelClient implements ProcessAnalysisModelClient {
 
     private ProcessUnderstandingDraft sanitize(ProcessUnderstandingDraft draft) {
         return new ProcessUnderstandingDraft(
+                draft.analysisStatus(),
                 sanitizeList(draft.observations()),
                 sanitizeList(draft.inferences()),
                 sanitizeList(draft.validationQuestions()),

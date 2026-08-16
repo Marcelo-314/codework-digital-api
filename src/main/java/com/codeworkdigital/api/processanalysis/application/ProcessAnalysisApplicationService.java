@@ -24,6 +24,9 @@ public class ProcessAnalysisApplicationService {
     public ProcessUnderstanding analyze(AnalyzeProcessDescriptionCommand command) {
         validate(command);
         ProcessUnderstanding understanding = modelClient.analyze(command);
+        if (!understanding.isProcessIdentified()) {
+            return understanding;
+        }
         return understanding.withTechnologyFitAssessments(technologyFitAssessmentEvaluator.assess(understanding));
     }
 

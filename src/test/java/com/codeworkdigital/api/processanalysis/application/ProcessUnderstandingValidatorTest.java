@@ -26,6 +26,80 @@ class ProcessUnderstandingValidatorTest {
                 .isEqualTo("observations_too_large");
     }
 
+    @Test
+    void rejectsMissingAnalysisStatus() {
+        ProcessUnderstandingDraft draft = new ProcessUnderstandingDraft(
+                null,
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                "");
+
+        assertThatThrownBy(() -> ProcessUnderstandingValidator.validate(draft))
+                .isInstanceOf(InvalidProcessAnalysisModelResponseException.class)
+                .extracting("reason")
+                .isEqualTo("analysis_status_missing");
+    }
+
+    @Test
+    void acceptsOutOfScopeWithEmptyAnalyticalContent() {
+        ProcessUnderstandingDraft draft = new ProcessUnderstandingDraft(
+                ProcessAnalysisStatus.OUT_OF_SCOPE,
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                "");
+
+        assertThatCode(() -> ProcessUnderstandingValidator.validate(draft)).doesNotThrowAnyException();
+    }
+
+    @Test
+    void acceptsInsufficientInformationWithEmptyAnalyticalContent() {
+        ProcessUnderstandingDraft draft = new ProcessUnderstandingDraft(
+                ProcessAnalysisStatus.INSUFFICIENT_INFORMATION,
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                "");
+
+        assertThatCode(() -> ProcessUnderstandingValidator.validate(draft)).doesNotThrowAnyException();
+    }
+
+    @Test
+    void rejectsProcessIdentifiedWithoutStages() {
+        ProcessUnderstandingDraft draft = new ProcessUnderstandingDraft(
+                ProcessAnalysisStatus.PROCESS_IDENTIFIED,
+                List.of("Observation"),
+                List.of("Inference"),
+                List.of("Validation question"),
+                List.of(),
+                "This understanding is preliminary.");
+
+        assertThatThrownBy(() -> ProcessUnderstandingValidator.validate(draft))
+                .isInstanceOf(InvalidProcessAnalysisModelResponseException.class)
+                .extracting("reason")
+                .isEqualTo("stages_empty");
+    }
+
+    @Test
+    void rejectsOutOfScopeWhenObservationsArePresent() {
+        ProcessUnderstandingDraft draft = new ProcessUnderstandingDraft(
+                ProcessAnalysisStatus.OUT_OF_SCOPE,
+                List.of("This should not be present."),
+                List.of(),
+                List.of(),
+                List.of(),
+                "");
+
+        assertThatThrownBy(() -> ProcessUnderstandingValidator.validate(draft))
+                .isInstanceOf(InvalidProcessAnalysisModelResponseException.class)
+                .extracting("reason")
+                .isEqualTo("observations_must_be_empty");
+    }
+
     private ProcessUnderstandingDraft draftWithObservations(int observationCount) {
         List<String> observations = new ArrayList<>();
         for (int index = 0; index < observationCount; index++) {
@@ -33,6 +107,7 @@ class ProcessUnderstandingValidatorTest {
         }
 
         return new ProcessUnderstandingDraft(
+                ProcessAnalysisStatus.PROCESS_IDENTIFIED,
                 observations,
                 List.of("Inference"),
                 List.of("Validation question"),

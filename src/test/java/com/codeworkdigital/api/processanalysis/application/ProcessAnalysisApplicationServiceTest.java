@@ -11,12 +11,12 @@ import org.junit.jupiter.api.Test;
 class ProcessAnalysisApplicationServiceTest {
 
     private final Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
-    private final TechnologyFitAssessmentEvaluator technologyFitAssessmentEvaluator =
-            new TechnologyFitAssessmentEvaluator();
 
     @Test
     void validCommandCallsModelExactlyOnce() {
         RecordingProcessAnalysisModelClient modelClient = new RecordingProcessAnalysisModelClient();
+        RecordingTechnologyFitAssessmentEvaluator technologyFitAssessmentEvaluator =
+                new RecordingTechnologyFitAssessmentEvaluator();
         ProcessAnalysisApplicationService service =
                 new ProcessAnalysisApplicationService(validator, modelClient, technologyFitAssessmentEvaluator);
         AnalyzeProcessDescriptionCommand command = new AnalyzeProcessDescriptionCommand(
@@ -28,6 +28,7 @@ class ProcessAnalysisApplicationServiceTest {
         assertThat(modelClient.invocations).isEqualTo(1);
         assertThat(modelClient.lastCommand).isEqualTo(command);
         assertThat(understanding.processDescription()).isEqualTo(command.description());
+        assertThat(technologyFitAssessmentEvaluator.invocations).isEqualTo(1);
         assertThat(understanding.technologyFitAssessments())
                 .singleElement()
                 .satisfies(assessment -> {
@@ -39,6 +40,8 @@ class ProcessAnalysisApplicationServiceTest {
     @Test
     void invalidCommandDoesNotCallModel() {
         RecordingProcessAnalysisModelClient modelClient = new RecordingProcessAnalysisModelClient();
+        RecordingTechnologyFitAssessmentEvaluator technologyFitAssessmentEvaluator =
+                new RecordingTechnologyFitAssessmentEvaluator();
         ProcessAnalysisApplicationService service =
                 new ProcessAnalysisApplicationService(validator, modelClient, technologyFitAssessmentEvaluator);
         AnalyzeProcessDescriptionCommand command = new AnalyzeProcessDescriptionCommand(
@@ -48,17 +51,47 @@ class ProcessAnalysisApplicationServiceTest {
         assertThatThrownBy(() -> service.analyze(command))
                 .isInstanceOf(ProcessAnalysisValidationException.class);
         assertThat(modelClient.invocations).isZero();
+        assertThat(technologyFitAssessmentEvaluator.invocations).isZero();
+    }
+
+    @Test
+    void nonProcessStatusesDoNotExecuteTechnologyFit() {
+        RecordingProcessAnalysisModelClient modelClient = new RecordingProcessAnalysisModelClient();
+        modelClient.response = new ProcessUnderstanding(
+                "We want AI to be more efficient.",
+                ProcessAnalysisStatus.INSUFFICIENT_INFORMATION,
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                "");
+        RecordingTechnologyFitAssessmentEvaluator technologyFitAssessmentEvaluator =
+                new RecordingTechnologyFitAssessmentEvaluator();
+        ProcessAnalysisApplicationService service =
+                new ProcessAnalysisApplicationService(validator, modelClient, technologyFitAssessmentEvaluator);
+
+        ProcessUnderstanding understanding = service.analyze(new AnalyzeProcessDescriptionCommand(
+                "We want AI to be more efficient.",
+                ProcessAnalysisLocale.EN));
+
+        assertThat(understanding.analysisStatus()).isEqualTo(ProcessAnalysisStatus.INSUFFICIENT_INFORMATION);
+        assertThat(understanding.technologyFitAssessments()).isEmpty();
+        assertThat(technologyFitAssessmentEvaluator.invocations).isZero();
     }
 
     private static final class RecordingProcessAnalysisModelClient implements ProcessAnalysisModelClient {
 
         private int invocations;
         private AnalyzeProcessDescriptionCommand lastCommand;
+        private ProcessUnderstanding response;
 
         @Override
         public ProcessUnderstanding analyze(AnalyzeProcessDescriptionCommand command) {
             invocations++;
             lastCommand = command;
+            if (response != null) {
+                return response;
+            }
             return new ProcessUnderstanding(
                     command.description(),
                     List.of("The process starts with a request."),
@@ -72,6 +105,17 @@ class ProcessAnalysisApplicationServiceTest {
                             ProcessStageOperationType.RECEIVE,
                             ProcessStageInputNature.UNSTRUCTURED)),
                     "This understanding is preliminary.");
+        }
+    }
+
+    private static final class RecordingTechnologyFitAssessmentEvaluator extends TechnologyFitAssessmentEvaluator {
+
+        private int invocations;
+
+        @Override
+        public List<TechnologyFitAssessment> assess(ProcessUnderstanding understanding) {
+            invocations++;
+            return super.assess(understanding);
         }
     }
 }

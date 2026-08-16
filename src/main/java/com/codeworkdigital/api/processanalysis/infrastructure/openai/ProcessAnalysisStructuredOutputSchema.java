@@ -7,12 +7,20 @@ import tools.jackson.databind.ObjectMapper;
 
 final class ProcessAnalysisStructuredOutputSchema {
 
-    static final String FORMAT_NAME = "process_understanding_v1";
+    static final String FORMAT_NAME = "process_understanding_v2";
 
     private static final String SCHEMA_JSON_TEMPLATE = """
             {
               "type": "object",
               "properties": {
+                "analysisStatus": {
+                  "type": "string",
+                  "enum": [
+                    "PROCESS_IDENTIFIED",
+                    "INSUFFICIENT_INFORMATION",
+                    "OUT_OF_SCOPE"
+                  ]
+                },
                 "observations": {
                   "type": "array",
                   "maxItems": %d,
@@ -39,7 +47,7 @@ final class ProcessAnalysisStructuredOutputSchema {
                 },
                 "stages": {
                   "type": "array",
-                  "minItems": %d,
+                  "minItems": 0,
                   "maxItems": %d,
                   "items": {
                     "type": "object",
@@ -100,6 +108,7 @@ final class ProcessAnalysisStructuredOutputSchema {
                 }
               },
               "required": [
+                "analysisStatus",
                 "observations",
                 "inferences",
                 "validationQuestions",
@@ -122,7 +131,6 @@ final class ProcessAnalysisStructuredOutputSchema {
                     ProcessUnderstandingConstraints.MAX_LIST_ITEM_LENGTH,
                     ProcessUnderstandingConstraints.MAX_VALIDATION_QUESTIONS,
                     ProcessUnderstandingConstraints.MAX_LIST_ITEM_LENGTH,
-                    ProcessUnderstandingConstraints.MIN_STAGES,
                     ProcessUnderstandingConstraints.MAX_STAGES,
                     ProcessUnderstandingConstraints.MAX_STAGE_ID_LENGTH,
                     ProcessUnderstandingConstraints.STAGE_ID_REGEX,

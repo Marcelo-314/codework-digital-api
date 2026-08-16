@@ -7,6 +7,7 @@ import com.codeworkdigital.api.processanalysis.application.InvalidProcessAnalysi
 import com.codeworkdigital.api.processanalysis.application.ProcessAnalysisApplicationService;
 import com.codeworkdigital.api.processanalysis.application.ProcessAnalysisModelClient;
 import com.codeworkdigital.api.processanalysis.application.ProcessAnalysisUnavailableException;
+import com.codeworkdigital.api.processanalysis.application.ProcessAnalysisStatus;
 import com.codeworkdigital.api.processanalysis.application.ProcessStageInputNature;
 import com.codeworkdigital.api.processanalysis.application.ProcessStageOperationType;
 import com.codeworkdigital.api.processanalysis.application.ProcessStageProvenance;
@@ -84,6 +85,7 @@ class ProcessAnalysisApiIntegrationTest {
         assertThat(response.headers().firstValue("cache-control")).contains("no-store");
         assertThat(body.get("processDescription"))
                 .isEqualTo("Recibimos pedidos por WhatsApp, verificamos stock y confirmamos entrega.");
+        assertThat(body.get("analysisStatus")).isEqualTo("PROCESS_IDENTIFIED");
         assertThat((List<?>) body.get("observations")).isNotEmpty();
         assertThat((List<?>) body.get("stages")).hasSize(2);
         assertThat((List<?>) body.get("technologyFitAssessments")).hasSize(2);
@@ -133,6 +135,50 @@ class ProcessAnalysisApiIntegrationTest {
         assertThat(response.statusCode()).isEqualTo(200);
         assertThat(response.headers().firstValue("access-control-allow-origin")).contains(ALLOWED_ORIGIN);
         assertThat(response.headers().firstValue("access-control-allow-credentials")).isEmpty();
+        assertThat(processAnalysisModelClient.invocations).isEqualTo(1);
+    }
+
+    @Test
+    void insufficientInformationReturnsSemanticSuccessWithoutTechnologyFit() throws Exception {
+        processAnalysisModelClient.mode = FakeProcessAnalysisModelClient.Mode.INSUFFICIENT_INFORMATION;
+
+        HttpResponse<String> response = post("""
+                {
+                  "description": "Queremos usar IA para ser mas eficientes.",
+                  "locale": "ES"
+                }
+                """);
+        Map<String, Object> body = json(response);
+
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat(body.get("analysisStatus")).isEqualTo("INSUFFICIENT_INFORMATION");
+        assertThat((List<?>) body.get("observations")).isEmpty();
+        assertThat((List<?>) body.get("inferences")).isEmpty();
+        assertThat((List<?>) body.get("validationQuestions")).isEmpty();
+        assertThat((List<?>) body.get("stages")).isEmpty();
+        assertThat(body.get("preliminaryAssessment")).isEqualTo("");
+        assertThat((List<?>) body.get("technologyFitAssessments")).isEmpty();
+        assertThat(processAnalysisModelClient.invocations).isEqualTo(1);
+    }
+
+    @Test
+    void outOfScopeReturnsSemanticSuccessWithoutGeneralistAnswer() throws Exception {
+        processAnalysisModelClient.mode = FakeProcessAnalysisModelClient.Mode.OUT_OF_SCOPE;
+
+        HttpResponse<String> response = post("""
+                {
+                  "description": "Demuestra que sqrt(2) es irracional.",
+                  "locale": "EN"
+                }
+                """);
+        Map<String, Object> body = json(response);
+
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat(body.get("analysisStatus")).isEqualTo("OUT_OF_SCOPE");
+        assertThat((List<?>) body.get("stages")).isEmpty();
+        assertThat((List<?>) body.get("technologyFitAssessments")).isEmpty();
+        assertThat(body.get("preliminaryAssessment")).isEqualTo("");
+        assertThat(response.body()).doesNotContain("irrational", "proof", "theorem");
         assertThat(processAnalysisModelClient.invocations).isEqualTo(1);
     }
 
@@ -322,6 +368,8 @@ class ProcessAnalysisApiIntegrationTest {
 
         enum Mode {
             SUCCESS,
+            INSUFFICIENT_INFORMATION,
+            OUT_OF_SCOPE,
             UNAVAILABLE,
             INVALID_RESPONSE
         }
@@ -356,6 +404,22 @@ class ProcessAnalysisApiIntegrationTest {
                                         ProcessStageOperationType.VALIDATE,
                                         ProcessStageInputNature.MIXED)),
                         "Este entendimiento es preliminar y depende de validar como se consulta stock y que excepciones existen.");
+                case INSUFFICIENT_INFORMATION -> new ProcessUnderstanding(
+                        command.description(),
+                        ProcessAnalysisStatus.INSUFFICIENT_INFORMATION,
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        "");
+                case OUT_OF_SCOPE -> new ProcessUnderstanding(
+                        command.description(),
+                        ProcessAnalysisStatus.OUT_OF_SCOPE,
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        "");
                 case UNAVAILABLE -> throw new ProcessAnalysisUnavailableException("simulated_unavailable");
                 case INVALID_RESPONSE -> throw new InvalidProcessAnalysisModelResponseException("simulated_invalid_response");
             };

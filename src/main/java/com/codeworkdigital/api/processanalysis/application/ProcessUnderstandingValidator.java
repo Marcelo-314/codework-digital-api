@@ -16,6 +16,9 @@ public final class ProcessUnderstandingValidator {
         if (draft == null) {
             throw new InvalidProcessAnalysisModelResponseException("missing_process_understanding");
         }
+        if (draft.analysisStatus() == null) {
+            throw new InvalidProcessAnalysisModelResponseException("analysis_status_missing");
+        }
 
         validateList("observations", draft.observations(), ProcessUnderstandingConstraints.MAX_OBSERVATIONS);
         validateList("inferences", draft.inferences(), ProcessUnderstandingConstraints.MAX_INFERENCES);
@@ -23,11 +26,26 @@ public final class ProcessUnderstandingValidator {
                 "validationQuestions",
                 draft.validationQuestions(),
                 ProcessUnderstandingConstraints.MAX_VALIDATION_QUESTIONS);
-        validateStages(draft.stages());
-        validateText(
-                draft.preliminaryAssessment(),
-                "preliminaryAssessment",
-                ProcessUnderstandingConstraints.MAX_PRELIMINARY_ASSESSMENT_LENGTH);
+
+        switch (draft.analysisStatus()) {
+            case PROCESS_IDENTIFIED -> {
+                validateStages(draft.stages());
+                validateText(
+                        draft.preliminaryAssessment(),
+                        "preliminaryAssessment",
+                        ProcessUnderstandingConstraints.MAX_PRELIMINARY_ASSESSMENT_LENGTH);
+            }
+            case INSUFFICIENT_INFORMATION, OUT_OF_SCOPE -> {
+                validateListIsEmpty("observations", draft.observations());
+                validateListIsEmpty("inferences", draft.inferences());
+                validateListIsEmpty("validationQuestions", draft.validationQuestions());
+                validateStagesAreEmpty(draft.stages());
+                validateBlankText(
+                        draft.preliminaryAssessment(),
+                        "preliminaryAssessment",
+                        ProcessUnderstandingConstraints.MAX_PRELIMINARY_ASSESSMENT_LENGTH);
+            }
+        }
     }
 
     private static void validateList(String field, List<String> items, int maxSize) {
@@ -82,12 +100,42 @@ public final class ProcessUnderstandingValidator {
         }
     }
 
+    private static void validateListIsEmpty(String field, List<String> items) {
+        if (items == null) {
+            throw new InvalidProcessAnalysisModelResponseException(field + "_missing");
+        }
+        if (!items.isEmpty()) {
+            throw new InvalidProcessAnalysisModelResponseException(field + "_must_be_empty");
+        }
+    }
+
+    private static void validateStagesAreEmpty(List<ProcessUnderstandingStage> stages) {
+        if (stages == null) {
+            throw new InvalidProcessAnalysisModelResponseException("stages_missing");
+        }
+        if (!stages.isEmpty()) {
+            throw new InvalidProcessAnalysisModelResponseException("stages_must_be_empty");
+        }
+    }
+
     private static void validateText(String value, String field, int maxLength) {
         if (value == null || value.isBlank()) {
             throw new InvalidProcessAnalysisModelResponseException(field + "_blank");
         }
         if (value.length() > maxLength) {
             throw new InvalidProcessAnalysisModelResponseException(field + "_too_long");
+        }
+    }
+
+    private static void validateBlankText(String value, String field, int maxLength) {
+        if (value == null) {
+            throw new InvalidProcessAnalysisModelResponseException(field + "_missing");
+        }
+        if (value.length() > maxLength) {
+            throw new InvalidProcessAnalysisModelResponseException(field + "_too_long");
+        }
+        if (!value.isBlank()) {
+            throw new InvalidProcessAnalysisModelResponseException(field + "_must_be_blank");
         }
     }
 }
