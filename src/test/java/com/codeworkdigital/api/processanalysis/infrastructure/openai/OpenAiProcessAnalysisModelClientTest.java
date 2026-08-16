@@ -7,6 +7,7 @@ import com.codeworkdigital.api.processanalysis.application.AnalyzeProcessDescrip
 import com.codeworkdigital.api.processanalysis.application.InvalidProcessAnalysisModelResponseException;
 import com.codeworkdigital.api.processanalysis.application.ProcessAnalysisLocale;
 import com.codeworkdigital.api.processanalysis.application.ProcessAnalysisUnavailableException;
+import com.codeworkdigital.api.processanalysis.application.ProcessUnderstandingConstraints;
 import com.codeworkdigital.api.processanalysis.application.ProcessUnderstanding;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
@@ -70,6 +71,12 @@ class OpenAiProcessAnalysisModelClientTest {
         assertThat(body.at("/text/format/name").textValue()).isEqualTo("process_understanding_v1");
         assertThat(body.at("/text/format/strict").booleanValue()).isTrue();
         assertThat(body.at("/text/format/schema/additionalProperties").booleanValue()).isFalse();
+        assertThat(body.at("/text/format/schema/properties/observations/maxItems").intValue())
+                .isEqualTo(ProcessUnderstandingConstraints.MAX_OBSERVATIONS);
+        assertThat(body.at("/text/format/schema/properties/stages/minItems").intValue())
+                .isEqualTo(ProcessUnderstandingConstraints.MIN_STAGES);
+        assertThat(body.at("/text/format/schema/properties/stages/maxItems").intValue())
+                .isEqualTo(ProcessUnderstandingConstraints.MAX_STAGES);
         assertThat(body.at("/input/0/role").textValue()).isEqualTo("system");
         assertThat(body.at("/input/0/content").textValue())
                 .contains("Do not recommend technology", "OBSERVED, INFERRED", "kebab-case");
@@ -161,6 +168,21 @@ class OpenAiProcessAnalysisModelClientTest {
 
         assertThatThrownBy(() -> clientResponding(200, successResponse(output)).analyze(validCommand()))
                 .isInstanceOf(InvalidProcessAnalysisModelResponseException.class);
+    }
+
+    @Test
+    void rejectsMoreObservationsThanAllowed() throws Exception {
+        ObjectNode output = validStructuredOutput();
+        ArrayNode observations = objectMapper.createArrayNode();
+        for (int index = 0; index < ProcessUnderstandingConstraints.MAX_OBSERVATIONS + 1; index++) {
+            observations.add("Observation " + index);
+        }
+        output.set("observations", observations);
+
+        assertThatThrownBy(() -> clientResponding(200, successResponse(output)).analyze(validCommand()))
+                .isInstanceOf(InvalidProcessAnalysisModelResponseException.class)
+                .extracting("reason")
+                .isEqualTo("observations_too_large");
     }
 
     @Test

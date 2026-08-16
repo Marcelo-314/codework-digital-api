@@ -7,17 +7,7 @@ import java.util.regex.Pattern;
 
 public final class ProcessUnderstandingValidator {
 
-    public static final int MAX_OBSERVATIONS = 12;
-    public static final int MAX_INFERENCES = 12;
-    public static final int MAX_VALIDATION_QUESTIONS = 12;
-    public static final int MAX_STAGES = 12;
-
-    private static final int MAX_STAGE_ID_LENGTH = 48;
-    private static final int MAX_TITLE_LENGTH = 120;
-    private static final int MAX_STAGE_DESCRIPTION_LENGTH = 320;
-    private static final int MAX_LIST_ITEM_LENGTH = 240;
-    private static final int MAX_PRELIMINARY_ASSESSMENT_LENGTH = 800;
-    private static final Pattern STAGE_ID_PATTERN = Pattern.compile("^[a-z0-9]+(?:-[a-z0-9]+)*$");
+    private static final Pattern STAGE_ID_PATTERN = Pattern.compile(ProcessUnderstandingConstraints.STAGE_ID_REGEX);
 
     private ProcessUnderstandingValidator() {
     }
@@ -27,11 +17,17 @@ public final class ProcessUnderstandingValidator {
             throw new InvalidProcessAnalysisModelResponseException("missing_process_understanding");
         }
 
-        validateList("observations", draft.observations(), MAX_OBSERVATIONS);
-        validateList("inferences", draft.inferences(), MAX_INFERENCES);
-        validateList("validationQuestions", draft.validationQuestions(), MAX_VALIDATION_QUESTIONS);
+        validateList("observations", draft.observations(), ProcessUnderstandingConstraints.MAX_OBSERVATIONS);
+        validateList("inferences", draft.inferences(), ProcessUnderstandingConstraints.MAX_INFERENCES);
+        validateList(
+                "validationQuestions",
+                draft.validationQuestions(),
+                ProcessUnderstandingConstraints.MAX_VALIDATION_QUESTIONS);
         validateStages(draft.stages());
-        validateText(draft.preliminaryAssessment(), "preliminaryAssessment", MAX_PRELIMINARY_ASSESSMENT_LENGTH);
+        validateText(
+                draft.preliminaryAssessment(),
+                "preliminaryAssessment",
+                ProcessUnderstandingConstraints.MAX_PRELIMINARY_ASSESSMENT_LENGTH);
     }
 
     private static void validateList(String field, List<String> items, int maxSize) {
@@ -42,7 +38,7 @@ public final class ProcessUnderstandingValidator {
             throw new InvalidProcessAnalysisModelResponseException(field + "_too_large");
         }
         for (String item : items) {
-            validateText(item, field + "Item", MAX_LIST_ITEM_LENGTH);
+            validateText(item, field + "Item", ProcessUnderstandingConstraints.MAX_LIST_ITEM_LENGTH);
         }
     }
 
@@ -53,7 +49,7 @@ public final class ProcessUnderstandingValidator {
         if (stages.isEmpty()) {
             throw new InvalidProcessAnalysisModelResponseException("stages_empty");
         }
-        if (stages.size() > MAX_STAGES) {
+        if (stages.size() > ProcessUnderstandingConstraints.MAX_STAGES) {
             throw new InvalidProcessAnalysisModelResponseException("stages_too_large");
         }
 
@@ -62,15 +58,18 @@ public final class ProcessUnderstandingValidator {
             if (stage == null) {
                 throw new InvalidProcessAnalysisModelResponseException("stage_null");
             }
-            validateText(stage.id(), "stage.id", MAX_STAGE_ID_LENGTH);
+            validateText(stage.id(), "stage.id", ProcessUnderstandingConstraints.MAX_STAGE_ID_LENGTH);
             if (!STAGE_ID_PATTERN.matcher(stage.id()).matches()) {
                 throw new InvalidProcessAnalysisModelResponseException("stage_id_invalid");
             }
             if (!ids.add(stage.id())) {
                 throw new InvalidProcessAnalysisModelResponseException("stage_id_duplicate");
             }
-            validateText(stage.title(), "stage.title", MAX_TITLE_LENGTH);
-            validateText(stage.description(), "stage.description", MAX_STAGE_DESCRIPTION_LENGTH);
+            validateText(stage.title(), "stage.title", ProcessUnderstandingConstraints.MAX_TITLE_LENGTH);
+            validateText(
+                    stage.description(),
+                    "stage.description",
+                    ProcessUnderstandingConstraints.MAX_STAGE_DESCRIPTION_LENGTH);
             if (stage.provenance() == null) {
                 throw new InvalidProcessAnalysisModelResponseException("stage_provenance_missing");
             }
