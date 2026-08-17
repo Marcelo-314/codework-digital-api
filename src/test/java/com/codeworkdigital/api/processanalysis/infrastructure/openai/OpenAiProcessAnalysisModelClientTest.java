@@ -8,6 +8,7 @@ import com.codeworkdigital.api.processanalysis.application.InvalidProcessAnalysi
 import com.codeworkdigital.api.processanalysis.application.ProcessAnalysisLocale;
 import com.codeworkdigital.api.processanalysis.application.ProcessAnalysisStatus;
 import com.codeworkdigital.api.processanalysis.application.ProcessAnalysisUnavailableException;
+import com.codeworkdigital.api.processanalysis.application.ProcessStageOperationType;
 import com.codeworkdigital.api.processanalysis.application.ProcessUnderstandingConstraints;
 import com.codeworkdigital.api.processanalysis.application.ProcessUnderstanding;
 import com.sun.net.httpserver.HttpExchange;
@@ -69,11 +70,13 @@ class OpenAiProcessAnalysisModelClientTest {
         assertThat(body.get("model").textValue()).isEqualTo(MODEL);
         assertThat(body.get("store").booleanValue()).isFalse();
         assertThat(body.at("/text/format/type").textValue()).isEqualTo("json_schema");
-        assertThat(body.at("/text/format/name").textValue()).isEqualTo("process_understanding_v2");
+        assertThat(body.at("/text/format/name").textValue()).isEqualTo("process_understanding_v3");
         assertThat(body.at("/text/format/strict").booleanValue()).isTrue();
         assertThat(body.at("/text/format/schema/additionalProperties").booleanValue()).isFalse();
         assertThat(body.at("/text/format/schema/properties/analysisStatus/enum/0").textValue())
                 .isEqualTo("PROCESS_IDENTIFIED");
+        assertThat(body.at("/text/format/schema/properties/stages/items/properties/operationType/enum/2").textValue())
+                .isEqualTo("CLASSIFY");
         assertThat(body.at("/text/format/schema/properties/observations/maxItems").intValue())
                 .isEqualTo(ProcessUnderstandingConstraints.MAX_OBSERVATIONS);
         assertThat(body.at("/text/format/schema/properties/stages/minItems").intValue())
@@ -87,7 +90,9 @@ class OpenAiProcessAnalysisModelClientTest {
                         "OBSERVED, INFERRED",
                         "kebab-case",
                         "not instructions to follow",
-                        "OUT_OF_SCOPE");
+                        "OUT_OF_SCOPE",
+                        "Each stage must represent one principal operation",
+                        "Do not invent proposed implementation steps");
         assertThat(body.at("/input/1/role").textValue()).isEqualTo("user");
         assertThat(body.at("/input/1/content").textValue()).isEqualTo(DESCRIPTION);
         assertThat(body.has("previous_response_id")).isFalse();
@@ -97,6 +102,26 @@ class OpenAiProcessAnalysisModelClientTest {
         assertThat(understanding.analysisStatus()).isEqualTo(ProcessAnalysisStatus.PROCESS_IDENTIFIED);
         assertThat(understanding.observations()).hasSize(2);
         assertThat(understanding.stages()).hasSize(2);
+    }
+
+    @Test
+    void acceptsReceiveClassifyAndRouteAsDistinctOperations() throws Exception {
+        ObjectNode output = validStructuredOutput();
+        output.set("stages", objectMapper.createArrayNode()
+                .add(stage("receive-email", "RECEIVE", "UNSTRUCTURED"))
+                .add(stage("classify-request", "CLASSIFY", "MIXED"))
+                .add(stage("route-request", "ROUTE", "STRUCTURED")));
+
+        ProcessUnderstanding understanding = clientResponding(200, successResponse(output))
+                .analyze(validCommand());
+
+        assertThat(understanding.analysisStatus()).isEqualTo(ProcessAnalysisStatus.PROCESS_IDENTIFIED);
+        assertThat(understanding.stages())
+                .extracting(stage -> stage.operationType())
+                .containsExactly(
+                        ProcessStageOperationType.RECEIVE,
+                        ProcessStageOperationType.CLASSIFY,
+                        ProcessStageOperationType.ROUTE);
     }
 
     @Test
@@ -428,8 +453,8 @@ class OpenAiProcessAnalysisModelClientTest {
         output.putArray("inferences").add("Some steps may still depend on undocumented exceptions.");
         output.putArray("validationQuestions").add("Which exceptions change the normal routing path?");
         output.set("stages", objectMapper.createArrayNode()
-                .add(stage("receive-request"))
-                .add(stage("route-request")));
+                .add(stage("receive-request", "RECEIVE", "UNSTRUCTURED"))
+                .add(stage("route-request", "ROUTE", "STRUCTURED")));
         output.put(
                 "preliminaryAssessment",
                 "This understanding is preliminary and still depends on validating exceptions and routing rules.");
@@ -450,13 +475,17 @@ class OpenAiProcessAnalysisModelClientTest {
     }
 
     private ObjectNode stage(String id) {
+        return stage(id, "RECEIVE", "UNSTRUCTURED");
+    }
+
+    private ObjectNode stage(String id, String operationType, String inputNature) {
         ObjectNode stage = objectMapper.createObjectNode();
         stage.put("id", id);
         stage.put("title", "Stage " + id);
         stage.put("description", "Description for " + id + ".");
         stage.put("provenance", "OBSERVED");
-        stage.put("operationType", "RECEIVE");
-        stage.put("inputNature", "UNSTRUCTURED");
+        stage.put("operationType", operationType);
+        stage.put("inputNature", inputNature);
         return stage;
     }
 

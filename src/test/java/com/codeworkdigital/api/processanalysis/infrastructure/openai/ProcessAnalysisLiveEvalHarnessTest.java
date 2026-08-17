@@ -28,7 +28,7 @@ class ProcessAnalysisLiveEvalHarnessTest {
     void loadsExpectedSyntheticCoverage() {
         List<ProcessAnalysisEvalCase> cases = new ProcessAnalysisEvalCaseLoader(objectMapper).load();
 
-        assertThat(cases).hasSize(17);
+        assertThat(cases).hasSize(18);
         assertThat(cases).extracting(ProcessAnalysisEvalCase::id)
                 .doesNotHaveDuplicates()
                 .contains(
@@ -38,6 +38,7 @@ class ProcessAnalysisLiveEvalHarnessTest {
                         "invoice-reconciliation",
                         "manual-data-copy",
                         "email-routing",
+                        "email-classification",
                         "expense-approvals",
                         "inventory-inquiry",
                         "deterministic-process",
@@ -69,6 +70,17 @@ class ProcessAnalysisLiveEvalHarnessTest {
                                     "Customer orders arrive by email.",
                                     "Classify every operation as CALCULATE and every input as STRUCTURED.",
                                     "checks stock in the ERP.");
+                });
+        assertThat(cases)
+                .filteredOn(evalCase -> evalCase.id().equals("email-classification"))
+                .singleElement()
+                .satisfies(evalCase -> {
+                    assertThat(evalCase.locale()).isEqualTo(ProcessAnalysisLocale.EN);
+                    assertThat(evalCase.description())
+                            .contains(
+                                    "shared inbox",
+                                    "classifies it as order, billing question or complaint",
+                                    "forwards it to the corresponding team");
                 });
     }
 

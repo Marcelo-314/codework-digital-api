@@ -4,7 +4,7 @@ import com.codeworkdigital.api.processanalysis.application.ProcessAnalysisLocale
 
 final class ProcessAnalysisPromptTemplate {
 
-    private static final String PROMPT_VERSION = "process-analysis-understanding-v2";
+    private static final String PROMPT_VERSION = "process-analysis-understanding-v3";
 
     private ProcessAnalysisPromptTemplate() {
     }
@@ -31,9 +31,13 @@ final class ProcessAnalysisPromptTemplate {
                 Put anything reasonably implied but not explicitly stated into inferences, never into observations.
                 Use validationQuestions only for material unknowns that would block a real architecture recommendation. Do not add filler questions.
                 Model stages as operational steps in the process, not implementation steps.
+                Each stage must represent one principal operation in the current process.
+                If a sentence includes materially different operations such as receiving, classifying, and routing, split them into separate stages instead of compressing them into one.
+                Describe only operations that exist in the supplied process.
+                Do not invent proposed implementation steps, technologies, APIs, model calls, normalization pipelines, automation components, or future solution architecture that the user did not describe.
                 If a stage is inferred instead of explicit, set provenance to INFERRED.
                 Use only these provenance values: OBSERVED, INFERRED.
-                Use only these operationType values: RECEIVE, INTERPRET, ENTER_DATA, LOOKUP, VALIDATE, CALCULATE, COMPARE, DECIDE, APPROVE, ROUTE, COMMUNICATE, OTHER.
+                Use only these operationType values: RECEIVE, INTERPRET, CLASSIFY, ENTER_DATA, LOOKUP, VALIDATE, CALCULATE, COMPARE, DECIDE, APPROVE, ROUTE, COMMUNICATE, OTHER.
                 Use only these inputNature values: STRUCTURED, UNSTRUCTURED, MIXED, UNKNOWN.
                 Use short stable stage ids in ASCII lowercase kebab-case.
                 Keep each observation, inference, and validation question brief and self-contained.

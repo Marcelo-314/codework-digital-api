@@ -30,6 +30,11 @@
     "description": "Le email arrivano in una casella condivisa, un operatore le legge, identifica il tema e le inoltra al team corretto per la risposta."
   },
   {
+    "id": "email-classification",
+    "locale": "EN",
+    "description": "Customer emails arrive in a shared inbox. A worker reads each message, classifies it as order, billing question or complaint, and forwards it to the corresponding team."
+  },
+  {
     "id": "expense-approvals",
     "locale": "EN",
     "description": "Employees submit expense receipts, finance checks policy compliance, a manager approves exceptions, and accounting releases reimbursement."

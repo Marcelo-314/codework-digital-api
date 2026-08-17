@@ -88,6 +88,27 @@ class TechnologyFitAssessmentEvaluatorTest {
     }
 
     @Test
+    void classifyDoesNotAutomaticallyBecomeAiAssisted() {
+        List<TechnologyFitAssessment> assessments = evaluator.assess(understandingWith(stage(
+                "classify-email",
+                ProcessStageProvenance.OBSERVED,
+                ProcessStageOperationType.CLASSIFY,
+                ProcessStageInputNature.MIXED)));
+
+        assertThat(assessments)
+                .singleElement()
+                .satisfies(assessment -> {
+                    assertThat(assessment.approach()).isEqualTo(TechnologyFitApproach.TO_VALIDATE);
+                    assertThat(assessment.reasons()).containsExactly(
+                            TechnologyFitReasonCode.OBSERVED_STAGE,
+                            TechnologyFitReasonCode.AVAILABLE_EVIDENCE_IS_INSUFFICIENT);
+                    assertThat(assessment.validationNeeds()).containsExactly(
+                            TechnologyFitValidationNeed.CLARIFY_INPUT_STRUCTURE,
+                            TechnologyFitValidationNeed.CLARIFY_EXECUTION_MODE);
+                });
+    }
+
+    @Test
     void decideDoesNotAutomaticallyBecomeAiAssisted() {
         List<TechnologyFitAssessment> assessments = evaluator.assess(understandingWith(stage(
                 "decide-credit",

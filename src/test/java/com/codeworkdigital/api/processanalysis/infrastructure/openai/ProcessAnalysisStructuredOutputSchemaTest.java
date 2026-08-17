@@ -18,6 +18,21 @@ class ProcessAnalysisStructuredOutputSchemaTest {
 
         assertThat(textValues(schema.at("/properties/analysisStatus/enum")))
                 .containsExactly("PROCESS_IDENTIFIED", "INSUFFICIENT_INFORMATION", "OUT_OF_SCOPE");
+        assertThat(textValues(schema.at("/properties/stages/items/properties/operationType/enum")))
+                .containsExactly(
+                        "RECEIVE",
+                        "INTERPRET",
+                        "CLASSIFY",
+                        "ENTER_DATA",
+                        "LOOKUP",
+                        "VALIDATE",
+                        "CALCULATE",
+                        "COMPARE",
+                        "DECIDE",
+                        "APPROVE",
+                        "ROUTE",
+                        "COMMUNICATE",
+                        "OTHER");
         assertThat(schema.at("/properties/observations/maxItems").intValue())
                 .isEqualTo(ProcessUnderstandingConstraints.MAX_OBSERVATIONS);
         assertThat(schema.at("/properties/observations/items/maxLength").intValue())

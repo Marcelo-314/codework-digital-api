@@ -7,7 +7,7 @@ import tools.jackson.databind.ObjectMapper;
 
 final class ProcessAnalysisStructuredOutputSchema {
 
-    static final String FORMAT_NAME = "process_understanding_v2";
+    static final String FORMAT_NAME = "process_understanding_v3";
 
     private static final String SCHEMA_JSON_TEMPLATE = """
             {
@@ -74,6 +74,7 @@ final class ProcessAnalysisStructuredOutputSchema {
                         "enum": [
                           "RECEIVE",
                           "INTERPRET",
+                          "CLASSIFY",
                           "ENTER_DATA",
                           "LOOKUP",
                           "VALIDATE",
