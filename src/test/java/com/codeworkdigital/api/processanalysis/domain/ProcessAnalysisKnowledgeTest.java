@@ -13,7 +13,10 @@ class ProcessAnalysisKnowledgeTest {
     @Test
     void keepsKnownFactsInferencesEvidenceGapsAndConstraintsDistinct() {
         ProcessAnalysisScope processWide = ProcessAnalysisScope.processWide();
-        ProcessKnownFact fact = new ProcessKnownFact("Orders are reviewed before fulfillment", processWide);
+        ProcessKnownFact fact = new ProcessKnownFact(
+                "Orders are reviewed before fulfillment",
+                ProcessFactGrounding.SOURCE_STATED,
+                processWide);
         ProcessInference inference = new ProcessInference("Routing may depend on request category", processWide);
         ProcessEvidenceGap gap = new ProcessEvidenceGap(
                 "How often are orders revised after review?",
@@ -33,6 +36,41 @@ class ProcessAnalysisKnowledgeTest {
         assertThat(knowledge.inferences()).containsExactly(inference);
         assertThat(knowledge.evidenceGaps()).containsExactly(gap);
         assertThat(knowledge.constraints()).containsExactly(constraint);
+    }
+
+    @Test
+    void acceptsSourceStatedKnownFact() {
+        ProcessKnownFact fact = new ProcessKnownFact(
+                "Requests arrive through a form",
+                ProcessFactGrounding.SOURCE_STATED,
+                ProcessAnalysisScope.processWide());
+
+        assertThat(fact.grounding()).isEqualTo(ProcessFactGrounding.SOURCE_STATED);
+    }
+
+    @Test
+    void acceptsEmpiricallyEstablishedKnownFact() {
+        ProcessKnownFact fact = new ProcessKnownFact(
+                "The measured monthly average is 3,986 requests",
+                ProcessFactGrounding.EMPIRICALLY_ESTABLISHED,
+                ProcessAnalysisScope.processWide());
+
+        assertThat(fact.grounding()).isEqualTo(ProcessFactGrounding.EMPIRICALLY_ESTABLISHED);
+    }
+
+    @Test
+    void acceptsDeterministicallyDerivedKnownFactWithoutInference() {
+        ProcessKnownFact fact = new ProcessKnownFact(
+                "4,000 requests at 2 minutes each is 8,000 minutes",
+                ProcessFactGrounding.DETERMINISTICALLY_DERIVED,
+                ProcessAnalysisScope.processWide());
+
+        ProcessAnalysisKnowledge knowledge =
+                new ProcessAnalysisKnowledge(List.of(fact), List.of(), List.of(), List.of());
+
+        assertThat(knowledge.knownFacts()).containsExactly(fact);
+        assertThat(knowledge.inferences()).isEmpty();
+        assertThat(fact.grounding()).isEqualTo(ProcessFactGrounding.DETERMINISTICALLY_DERIVED);
     }
 
     @Test
@@ -72,9 +110,11 @@ class ProcessAnalysisKnowledgeTest {
     void rejectsBlankOrNullRequiredValues() {
         ProcessAnalysisScope processWide = ProcessAnalysisScope.processWide();
 
-        assertThatThrownBy(() -> new ProcessKnownFact(" ", processWide))
+        assertThatThrownBy(() -> new ProcessKnownFact(" ", ProcessFactGrounding.SOURCE_STATED, processWide))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new ProcessKnownFact("fact", null))
+        assertThatThrownBy(() -> new ProcessKnownFact("fact", null, processWide))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new ProcessKnownFact("fact", ProcessFactGrounding.SOURCE_STATED, null))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new ProcessInference(" ", processWide))
                 .isInstanceOf(IllegalArgumentException.class);
@@ -107,7 +147,10 @@ class ProcessAnalysisKnowledgeTest {
     @Test
     void rejectsNullCollectionMembers() {
         ProcessAnalysisScope processWide = ProcessAnalysisScope.processWide();
-        ProcessKnownFact fact = new ProcessKnownFact("Orders are reviewed", processWide);
+        ProcessKnownFact fact = new ProcessKnownFact(
+                "Orders are reviewed",
+                ProcessFactGrounding.SOURCE_STATED,
+                processWide);
         ProcessInference inference = new ProcessInference("Routing may depend on request category", processWide);
         ProcessEvidenceGap gap = new ProcessEvidenceGap(
                 "What is missing?",
@@ -149,7 +192,10 @@ class ProcessAnalysisKnowledgeTest {
     @Test
     void defensivelyCopiesCollections() {
         ProcessAnalysisScope processWide = ProcessAnalysisScope.processWide();
-        ProcessKnownFact fact = new ProcessKnownFact("Orders are reviewed", processWide);
+        ProcessKnownFact fact = new ProcessKnownFact(
+                "Orders are reviewed",
+                ProcessFactGrounding.SOURCE_STATED,
+                processWide);
         ProcessInference inference = new ProcessInference("Routing may depend on request category", processWide);
         ProcessEvidenceGap gap = new ProcessEvidenceGap(
                 "How often does reentry occur?",
@@ -178,7 +224,10 @@ class ProcessAnalysisKnowledgeTest {
         assertThat(knowledge.inferences()).containsExactly(inference);
         assertThat(knowledge.evidenceGaps()).containsExactly(gap);
         assertThat(knowledge.constraints()).containsExactly(constraint);
-        assertThatThrownBy(() -> knowledge.knownFacts().add(new ProcessKnownFact("new fact", processWide)))
+        assertThatThrownBy(() -> knowledge.knownFacts().add(new ProcessKnownFact(
+                        "new fact",
+                        ProcessFactGrounding.SOURCE_STATED,
+                        processWide)))
                 .isInstanceOf(UnsupportedOperationException.class);
         assertThatThrownBy(() -> knowledge.inferences().add(new ProcessInference("new inference", processWide)))
                 .isInstanceOf(UnsupportedOperationException.class);

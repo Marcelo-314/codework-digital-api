@@ -2,10 +2,11 @@ package com.codeworkdigital.api.processanalysis.domain;
 
 import java.util.Objects;
 
-public record ProcessKnownFact(String statement, ProcessAnalysisScope scope) {
+public record ProcessKnownFact(String statement, ProcessFactGrounding grounding, ProcessAnalysisScope scope) {
 
     public ProcessKnownFact {
         statement = requireNonBlank(statement, "statement");
+        grounding = Objects.requireNonNull(grounding, "grounding");
         scope = Objects.requireNonNull(scope, "scope");
     }
 

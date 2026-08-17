@@ -11,7 +11,10 @@ class ProcessAnalysisStructureTest {
     @Test
     void acceptsProcessWideKnowledge() {
         ProcessAnalysisKnowledge knowledge = new ProcessAnalysisKnowledge(
-                List.of(new ProcessKnownFact("Orders are reviewed", ProcessAnalysisScope.processWide())),
+                List.of(new ProcessKnownFact(
+                        "Orders are reviewed",
+                        ProcessFactGrounding.SOURCE_STATED,
+                        ProcessAnalysisScope.processWide())),
                 List.of(new ProcessInference(
                         "Routing may depend on request category",
                         ProcessAnalysisScope.processWide())),
@@ -33,7 +36,10 @@ class ProcessAnalysisStructureTest {
     @Test
     void acceptsOperationScopedKnownFact() {
         ProcessAnalysisKnowledge knowledge = new ProcessAnalysisKnowledge(
-                List.of(new ProcessKnownFact("Validation happens before review", ProcessAnalysisScope.operation("validate"))),
+                List.of(new ProcessKnownFact(
+                        "Validation happens before review",
+                        ProcessFactGrounding.SOURCE_STATED,
+                        ProcessAnalysisScope.operation("validate"))),
                 List.of(),
                 List.of(),
                 List.of());
@@ -79,6 +85,7 @@ class ProcessAnalysisStructureTest {
         ProcessAnalysisKnowledge knowledge = new ProcessAnalysisKnowledge(
                 List.of(new ProcessKnownFact(
                         "Review and revision can repeat",
+                        ProcessFactGrounding.SOURCE_STATED,
                         ProcessAnalysisScope.operations(List.of("review", "revise", "validate")))),
                 List.of(),
                 List.of(),
@@ -91,7 +98,10 @@ class ProcessAnalysisStructureTest {
     @Test
     void rejectsUnknownOperationReferencedByKnownFact() {
         ProcessAnalysisKnowledge knowledge = new ProcessAnalysisKnowledge(
-                List.of(new ProcessKnownFact("Escalation happens", ProcessAnalysisScope.operation("escalate"))),
+                List.of(new ProcessKnownFact(
+                        "Escalation happens",
+                        ProcessFactGrounding.SOURCE_STATED,
+                        ProcessAnalysisScope.operation("escalate"))),
                 List.of(),
                 List.of(),
                 List.of());
