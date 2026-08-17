@@ -2,12 +2,17 @@ package com.codeworkdigital.api.processanalysis.domain;
 
 import java.util.Objects;
 
-public record ProcessEvidenceGap(String question, ProcessEvidenceSource source, String decisionAffected) {
+public record ProcessEvidenceGap(
+        String question,
+        ProcessEvidenceSource source,
+        String decisionAffected,
+        ProcessAnalysisScope scope) {
 
     public ProcessEvidenceGap {
         question = requireNonBlank(question, "question");
         source = Objects.requireNonNull(source, "source");
         decisionAffected = requireNonBlank(decisionAffected, "decisionAffected");
+        scope = Objects.requireNonNull(scope, "scope");
     }
 
     private static String requireNonBlank(String value, String name) {

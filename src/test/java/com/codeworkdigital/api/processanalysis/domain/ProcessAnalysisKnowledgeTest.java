@@ -12,15 +12,18 @@ class ProcessAnalysisKnowledgeTest {
 
     @Test
     void keepsKnownFactsEvidenceGapsAndConstraintsDistinct() {
-        ProcessKnownFact fact = new ProcessKnownFact("Orders are reviewed before fulfillment");
+        ProcessAnalysisScope processWide = ProcessAnalysisScope.processWide();
+        ProcessKnownFact fact = new ProcessKnownFact("Orders are reviewed before fulfillment", processWide);
         ProcessEvidenceGap gap = new ProcessEvidenceGap(
                 "How often are orders revised after review?",
                 ProcessEvidenceSource.EMPIRICAL,
-                "Whether revision handling needs separate analysis");
+                "Whether revision handling needs separate analysis",
+                processWide);
         ProcessConstraint constraint = new ProcessConstraint(
                 "Only approved staff may release refunds",
                 "governance rule",
-                "Whether automated release is allowed");
+                "Whether automated release is allowed",
+                processWide);
 
         ProcessAnalysisKnowledge knowledge =
                 new ProcessAnalysisKnowledge(List.of(fact), List.of(gap), List.of(constraint));
@@ -35,7 +38,8 @@ class ProcessAnalysisKnowledgeTest {
         ProcessEvidenceGap gap = new ProcessEvidenceGap(
                 "Who decides the manual route?",
                 ProcessEvidenceSource.SELF_REPORTED,
-                "Whether routing authority is explicit");
+                "Whether routing authority is explicit",
+                ProcessAnalysisScope.processWide());
 
         assertThat(gap.source()).isEqualTo(ProcessEvidenceSource.SELF_REPORTED);
     }
@@ -45,7 +49,8 @@ class ProcessAnalysisKnowledgeTest {
         ProcessEvidenceGap gap = new ProcessEvidenceGap(
                 "How many submissions reenter validation?",
                 ProcessEvidenceSource.EMPIRICAL,
-                "Whether reentry volume changes process risk");
+                "Whether reentry volume changes process risk",
+                ProcessAnalysisScope.processWide());
 
         assertThat(gap.source()).isEqualTo(ProcessEvidenceSource.EMPIRICAL);
     }
@@ -55,23 +60,32 @@ class ProcessAnalysisKnowledgeTest {
         ProcessEvidenceGap gap = new ProcessEvidenceGap(
                 "What determines fulfillment path selection?",
                 ProcessEvidenceSource.UNKNOWN,
-                "Whether branching criteria can be specified");
+                "Whether branching criteria can be specified",
+                ProcessAnalysisScope.processWide());
 
         assertThat(gap.source()).isEqualTo(ProcessEvidenceSource.UNKNOWN);
     }
 
     @Test
     void rejectsBlankOrNullRequiredValues() {
-        assertThatThrownBy(() -> new ProcessKnownFact(" "))
+        ProcessAnalysisScope processWide = ProcessAnalysisScope.processWide();
+
+        assertThatThrownBy(() -> new ProcessKnownFact(" ", processWide))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new ProcessEvidenceGap(null, ProcessEvidenceSource.UNKNOWN, "decision"))
+        assertThatThrownBy(() -> new ProcessKnownFact("fact", null))
                 .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> new ProcessEvidenceGap("question", null, "decision"))
+        assertThatThrownBy(() -> new ProcessEvidenceGap(null, ProcessEvidenceSource.UNKNOWN, "decision", processWide))
                 .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> new ProcessEvidenceGap("question", ProcessEvidenceSource.UNKNOWN, " "))
+        assertThatThrownBy(() -> new ProcessEvidenceGap("question", null, "decision", processWide))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new ProcessEvidenceGap("question", ProcessEvidenceSource.UNKNOWN, " ", processWide))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new ProcessConstraint("constraint", "policy", " "))
+        assertThatThrownBy(() -> new ProcessEvidenceGap("question", ProcessEvidenceSource.UNKNOWN, "decision", null))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new ProcessConstraint("constraint", "policy", " ", processWide))
                 .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new ProcessConstraint("constraint", "policy", "decision", null))
+                .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new ProcessOperation(null, "title", "description"))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new ProcessInformationFlow("source", "target", " "))
@@ -84,15 +98,18 @@ class ProcessAnalysisKnowledgeTest {
 
     @Test
     void rejectsNullCollectionMembers() {
-        ProcessKnownFact fact = new ProcessKnownFact("Orders are reviewed");
+        ProcessAnalysisScope processWide = ProcessAnalysisScope.processWide();
+        ProcessKnownFact fact = new ProcessKnownFact("Orders are reviewed", processWide);
         ProcessEvidenceGap gap = new ProcessEvidenceGap(
                 "What is missing?",
                 ProcessEvidenceSource.UNKNOWN,
-                "Which decision may change");
+                "Which decision may change",
+                processWide);
         ProcessConstraint constraint = new ProcessConstraint(
                 "Refunds require approval",
                 "internal commercial policy",
-                "Whether refund release can proceed");
+                "Whether refund release can proceed",
+                processWide);
 
         assertThatThrownBy(() -> new ProcessAnalysisKnowledge(
                         listWithNull(fact),
@@ -113,15 +130,18 @@ class ProcessAnalysisKnowledgeTest {
 
     @Test
     void defensivelyCopiesCollections() {
-        ProcessKnownFact fact = new ProcessKnownFact("Orders are reviewed");
+        ProcessAnalysisScope processWide = ProcessAnalysisScope.processWide();
+        ProcessKnownFact fact = new ProcessKnownFact("Orders are reviewed", processWide);
         ProcessEvidenceGap gap = new ProcessEvidenceGap(
                 "How often does reentry occur?",
                 ProcessEvidenceSource.EMPIRICAL,
-                "Whether reentry should be modeled separately");
+                "Whether reentry should be modeled separately",
+                processWide);
         ProcessConstraint constraint = new ProcessConstraint(
                 "Customer data must remain in approved systems",
                 "legal requirement",
-                "Whether system boundary can change");
+                "Whether system boundary can change",
+                processWide);
         List<ProcessKnownFact> knownFacts = new ArrayList<>(List.of(fact));
         List<ProcessEvidenceGap> evidenceGaps = new ArrayList<>(List.of(gap));
         List<ProcessConstraint> constraints = new ArrayList<>(List.of(constraint));
@@ -136,7 +156,7 @@ class ProcessAnalysisKnowledgeTest {
         assertThat(knowledge.knownFacts()).containsExactly(fact);
         assertThat(knowledge.evidenceGaps()).containsExactly(gap);
         assertThat(knowledge.constraints()).containsExactly(constraint);
-        assertThatThrownBy(() -> knowledge.knownFacts().add(new ProcessKnownFact("new fact")))
+        assertThatThrownBy(() -> knowledge.knownFacts().add(new ProcessKnownFact("new fact", processWide)))
                 .isInstanceOf(UnsupportedOperationException.class);
     }
 
