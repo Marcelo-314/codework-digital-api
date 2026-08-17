@@ -11,9 +11,10 @@ import org.junit.jupiter.api.Test;
 class ProcessAnalysisKnowledgeTest {
 
     @Test
-    void keepsKnownFactsEvidenceGapsAndConstraintsDistinct() {
+    void keepsKnownFactsInferencesEvidenceGapsAndConstraintsDistinct() {
         ProcessAnalysisScope processWide = ProcessAnalysisScope.processWide();
         ProcessKnownFact fact = new ProcessKnownFact("Orders are reviewed before fulfillment", processWide);
+        ProcessInference inference = new ProcessInference("Routing may depend on request category", processWide);
         ProcessEvidenceGap gap = new ProcessEvidenceGap(
                 "How often are orders revised after review?",
                 ProcessEvidenceSource.EMPIRICAL,
@@ -26,9 +27,10 @@ class ProcessAnalysisKnowledgeTest {
                 processWide);
 
         ProcessAnalysisKnowledge knowledge =
-                new ProcessAnalysisKnowledge(List.of(fact), List.of(gap), List.of(constraint));
+                new ProcessAnalysisKnowledge(List.of(fact), List.of(inference), List.of(gap), List.of(constraint));
 
         assertThat(knowledge.knownFacts()).containsExactly(fact);
+        assertThat(knowledge.inferences()).containsExactly(inference);
         assertThat(knowledge.evidenceGaps()).containsExactly(gap);
         assertThat(knowledge.constraints()).containsExactly(constraint);
     }
@@ -74,6 +76,12 @@ class ProcessAnalysisKnowledgeTest {
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new ProcessKnownFact("fact", null))
                 .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new ProcessInference(" ", processWide))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new ProcessInference(null, processWide))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new ProcessInference("inference", null))
+                .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new ProcessEvidenceGap(null, ProcessEvidenceSource.UNKNOWN, "decision", processWide))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new ProcessEvidenceGap("question", null, "decision", processWide))
@@ -100,6 +108,7 @@ class ProcessAnalysisKnowledgeTest {
     void rejectsNullCollectionMembers() {
         ProcessAnalysisScope processWide = ProcessAnalysisScope.processWide();
         ProcessKnownFact fact = new ProcessKnownFact("Orders are reviewed", processWide);
+        ProcessInference inference = new ProcessInference("Routing may depend on request category", processWide);
         ProcessEvidenceGap gap = new ProcessEvidenceGap(
                 "What is missing?",
                 ProcessEvidenceSource.UNKNOWN,
@@ -113,16 +122,25 @@ class ProcessAnalysisKnowledgeTest {
 
         assertThatThrownBy(() -> new ProcessAnalysisKnowledge(
                         listWithNull(fact),
+                        List.of(inference),
                         List.of(gap),
                         List.of(constraint)))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new ProcessAnalysisKnowledge(
                         List.of(fact),
+                        listWithNull(inference),
+                        List.of(gap),
+                        List.of(constraint)))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new ProcessAnalysisKnowledge(
+                        List.of(fact),
+                        List.of(inference),
                         listWithNull(gap),
                         List.of(constraint)))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new ProcessAnalysisKnowledge(
                         List.of(fact),
+                        List.of(inference),
                         List.of(gap),
                         listWithNull(constraint)))
                 .isInstanceOf(NullPointerException.class);
@@ -132,6 +150,7 @@ class ProcessAnalysisKnowledgeTest {
     void defensivelyCopiesCollections() {
         ProcessAnalysisScope processWide = ProcessAnalysisScope.processWide();
         ProcessKnownFact fact = new ProcessKnownFact("Orders are reviewed", processWide);
+        ProcessInference inference = new ProcessInference("Routing may depend on request category", processWide);
         ProcessEvidenceGap gap = new ProcessEvidenceGap(
                 "How often does reentry occur?",
                 ProcessEvidenceSource.EMPIRICAL,
@@ -143,28 +162,34 @@ class ProcessAnalysisKnowledgeTest {
                 "Whether system boundary can change",
                 processWide);
         List<ProcessKnownFact> knownFacts = new ArrayList<>(List.of(fact));
+        List<ProcessInference> inferences = new ArrayList<>(List.of(inference));
         List<ProcessEvidenceGap> evidenceGaps = new ArrayList<>(List.of(gap));
         List<ProcessConstraint> constraints = new ArrayList<>(List.of(constraint));
 
         ProcessAnalysisKnowledge knowledge =
-                new ProcessAnalysisKnowledge(knownFacts, evidenceGaps, constraints);
+                new ProcessAnalysisKnowledge(knownFacts, inferences, evidenceGaps, constraints);
 
         knownFacts.clear();
+        inferences.clear();
         evidenceGaps.clear();
         constraints.clear();
 
         assertThat(knowledge.knownFacts()).containsExactly(fact);
+        assertThat(knowledge.inferences()).containsExactly(inference);
         assertThat(knowledge.evidenceGaps()).containsExactly(gap);
         assertThat(knowledge.constraints()).containsExactly(constraint);
         assertThatThrownBy(() -> knowledge.knownFacts().add(new ProcessKnownFact("new fact", processWide)))
+                .isInstanceOf(UnsupportedOperationException.class);
+        assertThatThrownBy(() -> knowledge.inferences().add(new ProcessInference("new inference", processWide)))
                 .isInstanceOf(UnsupportedOperationException.class);
     }
 
     @Test
     void acceptsEmptyKnowledgeCollections() {
-        ProcessAnalysisKnowledge knowledge = new ProcessAnalysisKnowledge(List.of(), List.of(), List.of());
+        ProcessAnalysisKnowledge knowledge = new ProcessAnalysisKnowledge(List.of(), List.of(), List.of(), List.of());
 
         assertThat(knowledge.knownFacts()).isEmpty();
+        assertThat(knowledge.inferences()).isEmpty();
         assertThat(knowledge.evidenceGaps()).isEmpty();
         assertThat(knowledge.constraints()).isEmpty();
     }

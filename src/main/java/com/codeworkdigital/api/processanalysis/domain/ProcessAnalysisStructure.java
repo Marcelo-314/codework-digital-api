@@ -18,6 +18,9 @@ public record ProcessAnalysisStructure(ProcessOperationGraph operationGraph, Pro
         for (ProcessKnownFact knownFact : knowledge.knownFacts()) {
             validateScope(operationIds, knownFact.scope(), "known fact");
         }
+        for (ProcessInference inference : knowledge.inferences()) {
+            validateScope(operationIds, inference.scope(), "inference");
+        }
         for (ProcessEvidenceGap evidenceGap : knowledge.evidenceGaps()) {
             validateScope(operationIds, evidenceGap.scope(), "evidence gap");
         }

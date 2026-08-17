@@ -12,6 +12,9 @@ class ProcessAnalysisStructureTest {
     void acceptsProcessWideKnowledge() {
         ProcessAnalysisKnowledge knowledge = new ProcessAnalysisKnowledge(
                 List.of(new ProcessKnownFact("Orders are reviewed", ProcessAnalysisScope.processWide())),
+                List.of(new ProcessInference(
+                        "Routing may depend on request category",
+                        ProcessAnalysisScope.processWide())),
                 List.of(new ProcessEvidenceGap(
                         "What changes routing?",
                         ProcessEvidenceSource.SELF_REPORTED,
@@ -32,6 +35,7 @@ class ProcessAnalysisStructureTest {
         ProcessAnalysisKnowledge knowledge = new ProcessAnalysisKnowledge(
                 List.of(new ProcessKnownFact("Validation happens before review", ProcessAnalysisScope.operation("validate"))),
                 List.of(),
+                List.of(),
                 List.of());
 
         assertThatCode(() -> new ProcessAnalysisStructure(graph(), knowledge))
@@ -41,6 +45,7 @@ class ProcessAnalysisStructureTest {
     @Test
     void acceptsOperationScopedEvidenceGap() {
         ProcessAnalysisKnowledge knowledge = new ProcessAnalysisKnowledge(
+                List.of(),
                 List.of(),
                 List.of(new ProcessEvidenceGap(
                         "How often does review request revision?",
@@ -56,6 +61,7 @@ class ProcessAnalysisStructureTest {
     @Test
     void acceptsOperationScopedConstraint() {
         ProcessAnalysisKnowledge knowledge = new ProcessAnalysisKnowledge(
+                List.of(),
                 List.of(),
                 List.of(),
                 List.of(new ProcessConstraint(
@@ -75,6 +81,7 @@ class ProcessAnalysisStructureTest {
                         "Review and revision can repeat",
                         ProcessAnalysisScope.operations(List.of("review", "revise", "validate")))),
                 List.of(),
+                List.of(),
                 List.of());
 
         assertThatCode(() -> new ProcessAnalysisStructure(graph(), knowledge))
@@ -86,6 +93,7 @@ class ProcessAnalysisStructureTest {
         ProcessAnalysisKnowledge knowledge = new ProcessAnalysisKnowledge(
                 List.of(new ProcessKnownFact("Escalation happens", ProcessAnalysisScope.operation("escalate"))),
                 List.of(),
+                List.of(),
                 List.of());
 
         assertThatThrownBy(() -> new ProcessAnalysisStructure(graph(), knowledge))
@@ -96,6 +104,7 @@ class ProcessAnalysisStructureTest {
     @Test
     void rejectsUnknownOperationReferencedByEvidenceGap() {
         ProcessAnalysisKnowledge knowledge = new ProcessAnalysisKnowledge(
+                List.of(),
                 List.of(),
                 List.of(new ProcessEvidenceGap(
                         "Who owns escalation?",
@@ -114,6 +123,7 @@ class ProcessAnalysisStructureTest {
         ProcessAnalysisKnowledge knowledge = new ProcessAnalysisKnowledge(
                 List.of(),
                 List.of(),
+                List.of(),
                 List.of(new ProcessConstraint(
                         "Escalation requires approval",
                         "governance rule",
@@ -123,6 +133,63 @@ class ProcessAnalysisStructureTest {
         assertThatThrownBy(() -> new ProcessAnalysisStructure(graph(), knowledge))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("constraint scope references an unknown operation: escalate");
+    }
+
+    @Test
+    void acceptsProcessWideInference() {
+        ProcessAnalysisKnowledge knowledge = new ProcessAnalysisKnowledge(
+                List.of(),
+                List.of(new ProcessInference(
+                        "Routing may depend on request category",
+                        ProcessAnalysisScope.processWide())),
+                List.of(),
+                List.of());
+
+        assertThatCode(() -> new ProcessAnalysisStructure(graph(), knowledge))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void acceptsOperationScopedInference() {
+        ProcessAnalysisKnowledge knowledge = new ProcessAnalysisKnowledge(
+                List.of(),
+                List.of(new ProcessInference(
+                        "Review may trigger revision",
+                        ProcessAnalysisScope.operation("review"))),
+                List.of(),
+                List.of());
+
+        assertThatCode(() -> new ProcessAnalysisStructure(graph(), knowledge))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void acceptsMultiOperationInferenceScopeWhenEveryOperationExists() {
+        ProcessAnalysisKnowledge knowledge = new ProcessAnalysisKnowledge(
+                List.of(),
+                List.of(new ProcessInference(
+                        "Review and revision may form a reentry region",
+                        ProcessAnalysisScope.operations(List.of("review", "revise", "validate")))),
+                List.of(),
+                List.of());
+
+        assertThatCode(() -> new ProcessAnalysisStructure(graph(), knowledge))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void rejectsUnknownOperationReferencedByInference() {
+        ProcessAnalysisKnowledge knowledge = new ProcessAnalysisKnowledge(
+                List.of(),
+                List.of(new ProcessInference(
+                        "Escalation may depend on review outcome",
+                        ProcessAnalysisScope.operation("escalate"))),
+                List.of(),
+                List.of());
+
+        assertThatThrownBy(() -> new ProcessAnalysisStructure(graph(), knowledge))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("inference scope references an unknown operation: escalate");
     }
 
     private static ProcessOperationGraph graph() {
