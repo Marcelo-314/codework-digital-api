@@ -1,5 +1,6 @@
 package com.codeworkdigital.api.processanalysis.application;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -77,6 +78,7 @@ public record ProcessUnderstanding(
                 assessments);
     }
 
+    @JsonIgnore
     public boolean isProcessIdentified() {
         return analysisStatus == ProcessAnalysisStatus.PROCESS_IDENTIFIED;
     }

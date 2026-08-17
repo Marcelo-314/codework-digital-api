@@ -86,6 +86,7 @@ class ProcessAnalysisApiIntegrationTest {
         assertThat(body.get("processDescription"))
                 .isEqualTo("Recibimos pedidos por WhatsApp, verificamos stock y confirmamos entrega.");
         assertThat(body.get("analysisStatus")).isEqualTo("PROCESS_IDENTIFIED");
+        assertThat(body).doesNotContainKey("processIdentified");
         assertThat((List<?>) body.get("observations")).isNotEmpty();
         assertThat((List<?>) body.get("stages")).hasSize(2);
         assertThat((List<?>) body.get("technologyFitAssessments")).hasSize(2);
@@ -152,6 +153,7 @@ class ProcessAnalysisApiIntegrationTest {
 
         assertThat(response.statusCode()).isEqualTo(200);
         assertThat(body.get("analysisStatus")).isEqualTo("INSUFFICIENT_INFORMATION");
+        assertThat(body).doesNotContainKey("processIdentified");
         assertThat((List<?>) body.get("observations")).isEmpty();
         assertThat((List<?>) body.get("inferences")).isEmpty();
         assertThat((List<?>) body.get("validationQuestions")).isEmpty();
@@ -175,6 +177,7 @@ class ProcessAnalysisApiIntegrationTest {
 
         assertThat(response.statusCode()).isEqualTo(200);
         assertThat(body.get("analysisStatus")).isEqualTo("OUT_OF_SCOPE");
+        assertThat(body).doesNotContainKey("processIdentified");
         assertThat((List<?>) body.get("stages")).isEmpty();
         assertThat((List<?>) body.get("technologyFitAssessments")).isEmpty();
         assertThat(body.get("preliminaryAssessment")).isEqualTo("");
