@@ -6,5 +6,5 @@ package com.codeworkdigital.api.processanalysis.domain;
  * This is not the whole proposition, generic application data, arbitrary JSON, an expression, or a deterministic
  * relation.
  */
-public sealed interface ProcessComputableProjection permits ProcessCategoryProjection {
+public sealed interface ProcessComputableProjection permits ProcessCategoryProjection, ProcessQuantityProjection {
 }

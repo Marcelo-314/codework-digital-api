@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -82,6 +83,23 @@ class ProcessAnalysisKnowledgeTest {
     }
 
     @Test
+    void acceptsSourceStatedKnownFactWithQuantityProjection() {
+        ProcessQuantityProjection projection = quantityProjection("4000", requestsPerMonth());
+        ProcessKnownFact fact = new ProcessKnownFact(
+                factId("fact-1"),
+                "The team handles 4,000 requests per month",
+                ProcessFactGrounding.SOURCE_STATED,
+                ProcessAnalysisScope.processWide(),
+                List.of(),
+                List.of(artifactId("source-1")),
+                Optional.of(projection));
+
+        assertThatCode(() -> new ProcessAnalysisKnowledge(List.of(fact), List.of(), List.of(), List.of()))
+                .doesNotThrowAnyException();
+        assertThat(fact.computableProjection()).contains(projection);
+    }
+
+    @Test
     void acceptsEmpiricallyEstablishedKnownFact() {
         ProcessKnownFact fact = new ProcessKnownFact(
                 factId("fact-1"),
@@ -140,6 +158,26 @@ class ProcessAnalysisKnowledgeTest {
         ProcessKnownFact derived = new ProcessKnownFact(
                 factId("fact-2"),
                 "Complaint requests route to the support team",
+                ProcessFactGrounding.DETERMINISTICALLY_DERIVED,
+                ProcessAnalysisScope.processWide(),
+                List.of(factId("fact-1")),
+                List.of(),
+                Optional.of(projection));
+
+        ProcessAnalysisKnowledge knowledge =
+                new ProcessAnalysisKnowledge(List.of(premise, derived), List.of(), List.of(), List.of());
+
+        assertThat(knowledge.knownFacts()).containsExactly(premise, derived);
+        assertThat(derived.computableProjection()).contains(projection);
+    }
+
+    @Test
+    void acceptsDeterministicallyDerivedKnownFactWithQuantityProjectionWhenPremisesAreValid() {
+        ProcessKnownFact premise = sourceFact("fact-1", "The team handles 4,000 requests per month", "source-1");
+        ProcessQuantityProjection projection = quantityProjection("8000", minutesPerMonth());
+        ProcessKnownFact derived = new ProcessKnownFact(
+                factId("fact-2"),
+                "The monthly effort is 8,000 minutes",
                 ProcessFactGrounding.DETERMINISTICALLY_DERIVED,
                 ProcessAnalysisScope.processWide(),
                 List.of(factId("fact-1")),
@@ -729,6 +767,22 @@ class ProcessAnalysisKnowledgeTest {
         return new ProcessCategoryProjection(
                 new ProcessCategoryDomainId(domainId),
                 new ProcessCategoryMemberId(memberId));
+    }
+
+    private static ProcessQuantityProjection quantityProjection(String magnitude, ProcessQuantityUnitExpression unit) {
+        return new ProcessQuantityProjection(new BigDecimal(magnitude), unit);
+    }
+
+    private static ProcessBusinessItemPerReportingPeriodUnit requestsPerMonth() {
+        return new ProcessBusinessItemPerReportingPeriodUnit(
+                new ProcessBusinessItemUnitId("request"),
+                ProcessReportingPeriodUnit.MONTH);
+    }
+
+    private static ProcessEffortPerReportingPeriodUnit minutesPerMonth() {
+        return new ProcessEffortPerReportingPeriodUnit(
+                ProcessEffortDurationUnit.MINUTE,
+                ProcessReportingPeriodUnit.MONTH);
     }
 
     private static ProcessKnownFact sourceFact(String id, String statement, String artifactId) {
