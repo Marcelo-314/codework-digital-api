@@ -4,10 +4,14 @@ import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 
-public record ProcessAnalysisStructure(ProcessOperationGraph operationGraph, ProcessAnalysisKnowledge knowledge) {
+public record ProcessAnalysisStructure(
+        ProcessOperationGraph operationGraph,
+        ProcessEvidenceBase evidenceBase,
+        ProcessAnalysisKnowledge knowledge) {
 
     public ProcessAnalysisStructure {
         operationGraph = Objects.requireNonNull(operationGraph, "operationGraph");
+        evidenceBase = Objects.requireNonNull(evidenceBase, "evidenceBase");
         knowledge = Objects.requireNonNull(knowledge, "knowledge");
 
         Set<String> operationIds = new HashSet<>();

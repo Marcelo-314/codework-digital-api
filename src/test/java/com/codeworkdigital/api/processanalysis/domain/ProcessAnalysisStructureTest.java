@@ -29,7 +29,7 @@ class ProcessAnalysisStructureTest {
                         "Whether release can be automated",
                         ProcessAnalysisScope.processWide())));
 
-        assertThatCode(() -> new ProcessAnalysisStructure(graph(), knowledge))
+        assertThatCode(() -> new ProcessAnalysisStructure(graph(), emptyEvidenceBase(), knowledge))
                 .doesNotThrowAnyException();
     }
 
@@ -44,7 +44,7 @@ class ProcessAnalysisStructureTest {
                 List.of(),
                 List.of());
 
-        assertThatCode(() -> new ProcessAnalysisStructure(graph(), knowledge))
+        assertThatCode(() -> new ProcessAnalysisStructure(graph(), emptyEvidenceBase(), knowledge))
                 .doesNotThrowAnyException();
     }
 
@@ -60,7 +60,7 @@ class ProcessAnalysisStructureTest {
                         ProcessAnalysisScope.operation("review"))),
                 List.of());
 
-        assertThatCode(() -> new ProcessAnalysisStructure(graph(), knowledge))
+        assertThatCode(() -> new ProcessAnalysisStructure(graph(), emptyEvidenceBase(), knowledge))
                 .doesNotThrowAnyException();
     }
 
@@ -76,7 +76,7 @@ class ProcessAnalysisStructureTest {
                         "Whether revision can skip review",
                         ProcessAnalysisScope.operation("revise"))));
 
-        assertThatCode(() -> new ProcessAnalysisStructure(graph(), knowledge))
+        assertThatCode(() -> new ProcessAnalysisStructure(graph(), emptyEvidenceBase(), knowledge))
                 .doesNotThrowAnyException();
     }
 
@@ -91,7 +91,7 @@ class ProcessAnalysisStructureTest {
                 List.of(),
                 List.of());
 
-        assertThatCode(() -> new ProcessAnalysisStructure(graph(), knowledge))
+        assertThatCode(() -> new ProcessAnalysisStructure(graph(), emptyEvidenceBase(), knowledge))
                 .doesNotThrowAnyException();
     }
 
@@ -106,7 +106,7 @@ class ProcessAnalysisStructureTest {
                 List.of(),
                 List.of());
 
-        assertThatThrownBy(() -> new ProcessAnalysisStructure(graph(), knowledge))
+        assertThatThrownBy(() -> new ProcessAnalysisStructure(graph(), emptyEvidenceBase(), knowledge))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("known fact scope references an unknown operation: escalate");
     }
@@ -123,7 +123,7 @@ class ProcessAnalysisStructureTest {
                         ProcessAnalysisScope.operation("escalate"))),
                 List.of());
 
-        assertThatThrownBy(() -> new ProcessAnalysisStructure(graph(), knowledge))
+        assertThatThrownBy(() -> new ProcessAnalysisStructure(graph(), emptyEvidenceBase(), knowledge))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("evidence gap scope references an unknown operation: escalate");
     }
@@ -140,7 +140,7 @@ class ProcessAnalysisStructureTest {
                         "Whether escalation can be automated",
                         ProcessAnalysisScope.operation("escalate"))));
 
-        assertThatThrownBy(() -> new ProcessAnalysisStructure(graph(), knowledge))
+        assertThatThrownBy(() -> new ProcessAnalysisStructure(graph(), emptyEvidenceBase(), knowledge))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("constraint scope references an unknown operation: escalate");
     }
@@ -155,7 +155,7 @@ class ProcessAnalysisStructureTest {
                 List.of(),
                 List.of());
 
-        assertThatCode(() -> new ProcessAnalysisStructure(graph(), knowledge))
+        assertThatCode(() -> new ProcessAnalysisStructure(graph(), emptyEvidenceBase(), knowledge))
                 .doesNotThrowAnyException();
     }
 
@@ -169,7 +169,7 @@ class ProcessAnalysisStructureTest {
                 List.of(),
                 List.of());
 
-        assertThatCode(() -> new ProcessAnalysisStructure(graph(), knowledge))
+        assertThatCode(() -> new ProcessAnalysisStructure(graph(), emptyEvidenceBase(), knowledge))
                 .doesNotThrowAnyException();
     }
 
@@ -183,7 +183,7 @@ class ProcessAnalysisStructureTest {
                 List.of(),
                 List.of());
 
-        assertThatCode(() -> new ProcessAnalysisStructure(graph(), knowledge))
+        assertThatCode(() -> new ProcessAnalysisStructure(graph(), emptyEvidenceBase(), knowledge))
                 .doesNotThrowAnyException();
     }
 
@@ -197,9 +197,29 @@ class ProcessAnalysisStructureTest {
                 List.of(),
                 List.of());
 
-        assertThatThrownBy(() -> new ProcessAnalysisStructure(graph(), knowledge))
+        assertThatThrownBy(() -> new ProcessAnalysisStructure(graph(), emptyEvidenceBase(), knowledge))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("inference scope references an unknown operation: escalate");
+    }
+
+    @Test
+    void acceptsValidEvidenceBase() {
+        ProcessAnalysisKnowledge knowledge = new ProcessAnalysisKnowledge(List.of(), List.of(), List.of(), List.of());
+        ProcessEvidenceBase evidenceBase = new ProcessEvidenceBase(List.of(new ProcessEvidenceArtifact(
+                new ProcessEvidenceArtifactId("source-1"),
+                ProcessEvidenceArtifactKind.SOURCE_MATERIAL,
+                "Source material stating the review rule")));
+
+        assertThatCode(() -> new ProcessAnalysisStructure(graph(), evidenceBase, knowledge))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void rejectsNullEvidenceBase() {
+        ProcessAnalysisKnowledge knowledge = new ProcessAnalysisKnowledge(List.of(), List.of(), List.of(), List.of());
+
+        assertThatThrownBy(() -> new ProcessAnalysisStructure(graph(), null, knowledge))
+                .isInstanceOf(NullPointerException.class);
     }
 
     private static ProcessOperationGraph graph() {
@@ -217,5 +237,9 @@ class ProcessAnalysisStructureTest {
 
     private static ProcessOperation operation(String id) {
         return new ProcessOperation(id, id, id + " operation");
+    }
+
+    private static ProcessEvidenceBase emptyEvidenceBase() {
+        return new ProcessEvidenceBase(List.of());
     }
 }
