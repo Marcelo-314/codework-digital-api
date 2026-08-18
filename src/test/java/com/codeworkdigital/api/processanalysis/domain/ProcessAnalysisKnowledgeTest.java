@@ -41,6 +41,7 @@ class ProcessAnalysisKnowledgeTest {
         assertThat(knowledge.inferences()).containsExactly(inference);
         assertThat(knowledge.evidenceGaps()).containsExactly(gap);
         assertThat(knowledge.constraints()).containsExactly(constraint);
+        assertThat(knowledge.deterministicDerivations()).isEmpty();
     }
 
     @Test
@@ -567,6 +568,15 @@ class ProcessAnalysisKnowledgeTest {
         assertThat(knowledge.inferences()).isEmpty();
         assertThat(knowledge.evidenceGaps()).isEmpty();
         assertThat(knowledge.constraints()).isEmpty();
+        assertThat(knowledge.deterministicDerivations()).isEmpty();
+    }
+
+    @Test
+    void acceptsEmptyDeterministicDerivations() {
+        ProcessAnalysisKnowledge knowledge =
+                new ProcessAnalysisKnowledge(List.of(), List.of(), List.of(), List.of(), List.of());
+
+        assertThat(knowledge.deterministicDerivations()).isEmpty();
     }
 
     @Test
