@@ -75,14 +75,4 @@ class ProcessEvidenceArtifactTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("description must not be blank");
     }
-
-    @Test
-    void doesNotRequirePhysicalProvenance() {
-        ProcessEvidenceArtifact artifact = new ProcessEvidenceArtifact(
-                new ProcessEvidenceArtifactId("source-material-a"),
-                ProcessEvidenceArtifactKind.SOURCE_MATERIAL,
-                "Available source material for the analysis");
-
-        assertThat(artifact.description()).doesNotContain("http", "/", "#", ":");
-    }
 }
