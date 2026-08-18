@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class ProcessAnalysisKnowledgeTest {
@@ -57,6 +58,30 @@ class ProcessAnalysisKnowledgeTest {
     }
 
     @Test
+    void acceptsKnownFactWithoutComputableProjection() {
+        ProcessKnownFact fact = sourceFact("fact-1", "Requests arrive through a form", "source-1");
+
+        assertThat(fact.computableProjection()).isEmpty();
+    }
+
+    @Test
+    void acceptsSourceStatedKnownFactWithCategoryProjection() {
+        ProcessCategoryProjection projection = categoryProjection("request-type", "complaint");
+        ProcessKnownFact fact = new ProcessKnownFact(
+                factId("fact-1"),
+                "The request is a complaint",
+                ProcessFactGrounding.SOURCE_STATED,
+                ProcessAnalysisScope.processWide(),
+                List.of(),
+                List.of(artifactId("source-1")),
+                Optional.of(projection));
+
+        assertThatCode(() -> new ProcessAnalysisKnowledge(List.of(fact), List.of(), List.of(), List.of()))
+                .doesNotThrowAnyException();
+        assertThat(fact.computableProjection()).contains(projection);
+    }
+
+    @Test
     void acceptsEmpiricallyEstablishedKnownFact() {
         ProcessKnownFact fact = new ProcessKnownFact(
                 factId("fact-1"),
@@ -68,6 +93,23 @@ class ProcessAnalysisKnowledgeTest {
 
         assertThat(fact.grounding()).isEqualTo(ProcessFactGrounding.EMPIRICALLY_ESTABLISHED);
         assertThat(fact.evidenceArtifactIds()).containsExactly(artifactId("measurement-1"));
+    }
+
+    @Test
+    void acceptsEmpiricallyEstablishedKnownFactWithCategoryProjection() {
+        ProcessCategoryProjection projection = categoryProjection("customer-tier", "premium");
+        ProcessKnownFact fact = new ProcessKnownFact(
+                factId("fact-1"),
+                "The observed customer tier is premium",
+                ProcessFactGrounding.EMPIRICALLY_ESTABLISHED,
+                ProcessAnalysisScope.processWide(),
+                List.of(),
+                List.of(artifactId("measurement-1")),
+                Optional.of(projection));
+
+        assertThatCode(() -> new ProcessAnalysisKnowledge(List.of(fact), List.of(), List.of(), List.of()))
+                .doesNotThrowAnyException();
+        assertThat(fact.computableProjection()).contains(projection);
     }
 
     @Test
@@ -92,6 +134,68 @@ class ProcessAnalysisKnowledgeTest {
     }
 
     @Test
+    void acceptsDeterministicallyDerivedKnownFactWithCategoryProjectionWhenPremisesAreValid() {
+        ProcessKnownFact premise = sourceFact("fact-1", "The request is a complaint", "source-1");
+        ProcessCategoryProjection projection = categoryProjection("routing-destination", "support-team");
+        ProcessKnownFact derived = new ProcessKnownFact(
+                factId("fact-2"),
+                "Complaint requests route to the support team",
+                ProcessFactGrounding.DETERMINISTICALLY_DERIVED,
+                ProcessAnalysisScope.processWide(),
+                List.of(factId("fact-1")),
+                List.of(),
+                Optional.of(projection));
+
+        ProcessAnalysisKnowledge knowledge =
+                new ProcessAnalysisKnowledge(List.of(premise, derived), List.of(), List.of(), List.of());
+
+        assertThat(knowledge.knownFacts()).containsExactly(premise, derived);
+        assertThat(derived.computableProjection()).contains(projection);
+    }
+
+    @Test
+    void rejectsNullComputableProjectionOptional() {
+        assertThatThrownBy(() -> new ProcessKnownFact(
+                        factId("fact-1"),
+                        "Requests arrive through a form",
+                        ProcessFactGrounding.SOURCE_STATED,
+                        ProcessAnalysisScope.processWide(),
+                        List.of(),
+                        List.of(artifactId("source-1")),
+                        null))
+                .isInstanceOf(NullPointerException.class);
+    }
+
+    @Test
+    void retainsEmptyComputableProjectionOptional() {
+        ProcessKnownFact fact = new ProcessKnownFact(
+                factId("fact-1"),
+                "Requests arrive through a form",
+                ProcessFactGrounding.SOURCE_STATED,
+                ProcessAnalysisScope.processWide(),
+                List.of(),
+                List.of(artifactId("source-1")),
+                Optional.empty());
+
+        assertThat(fact.computableProjection()).isEmpty();
+    }
+
+    @Test
+    void retainsPresentCategoryProjection() {
+        ProcessCategoryProjection projection = categoryProjection("request-type", "order");
+        ProcessKnownFact fact = new ProcessKnownFact(
+                factId("fact-1"),
+                "The request is an order",
+                ProcessFactGrounding.SOURCE_STATED,
+                ProcessAnalysisScope.processWide(),
+                List.of(),
+                List.of(artifactId("source-1")),
+                Optional.of(projection));
+
+        assertThat(fact.computableProjection()).contains(projection);
+    }
+
+    @Test
     void sourceStatedKnownFactRequiresEvidenceArtifactIds() {
         assertThatThrownBy(() -> new ProcessKnownFact(
                         factId("fact-1"),
@@ -100,6 +204,20 @@ class ProcessAnalysisKnowledgeTest {
                         ProcessAnalysisScope.processWide(),
                         List.of(),
                         List.of()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("SOURCE_STATED known facts require evidence artifact ids");
+    }
+
+    @Test
+    void sourceStatedFactWithProjectionStillRequiresEvidenceArtifactIds() {
+        assertThatThrownBy(() -> new ProcessKnownFact(
+                        factId("fact-1"),
+                        "The request is a complaint",
+                        ProcessFactGrounding.SOURCE_STATED,
+                        ProcessAnalysisScope.processWide(),
+                        List.of(),
+                        List.of(),
+                        Optional.of(categoryProjection("request-type", "complaint"))))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("SOURCE_STATED known facts require evidence artifact ids");
     }
@@ -128,6 +246,20 @@ class ProcessAnalysisKnowledgeTest {
                         List.of(artifactId("artifact-1"))))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("DETERMINISTICALLY_DERIVED known facts do not accept evidence artifact ids");
+    }
+
+    @Test
+    void sourceStatedFactWithProjectionStillRejectsPremiseFactIds() {
+        assertThatThrownBy(() -> new ProcessKnownFact(
+                        factId("fact-1"),
+                        "The request is a complaint",
+                        ProcessFactGrounding.SOURCE_STATED,
+                        ProcessAnalysisScope.processWide(),
+                        List.of(factId("fact-0")),
+                        List.of(artifactId("source-1")),
+                        Optional.of(categoryProjection("request-type", "complaint"))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("SOURCE_STATED known facts do not accept premise fact ids");
     }
 
     @Test
@@ -591,6 +723,12 @@ class ProcessAnalysisKnowledgeTest {
 
     private static ProcessKnownFactId factId(String value) {
         return new ProcessKnownFactId(value);
+    }
+
+    private static ProcessCategoryProjection categoryProjection(String domainId, String memberId) {
+        return new ProcessCategoryProjection(
+                new ProcessCategoryDomainId(domainId),
+                new ProcessCategoryMemberId(memberId));
     }
 
     private static ProcessKnownFact sourceFact(String id, String statement, String artifactId) {

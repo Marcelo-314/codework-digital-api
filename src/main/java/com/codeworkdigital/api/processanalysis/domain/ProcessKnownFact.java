@@ -3,6 +3,7 @@ package com.codeworkdigital.api.processanalysis.domain;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -10,6 +11,14 @@ import java.util.Set;
  *
  * premiseFactIds identifies the established propositions used as immediate premises. It does not represent a formula,
  * calculation, transformation, rule, proof, or executable specification.
+ *
+ * computableProjection is optional machine-usable content projected from the proposition for supported deterministic
+ * analysis. A missing projection is a valid domain case for non-computable facts. For SOURCE_STATED facts the statement
+ * remains the source-grounded proposition, and any projection is subordinate extraction/normalization whose presence
+ * alone does not prove extraction correctness. For DETERMINISTICALLY_DERIVED facts a future verified computation may
+ * make the projection the canonical computed result and the statement its human-readable rendering; this type does not
+ * require every derived fact to have a projection or verify statement/projection consistency. For
+ * EMPIRICALLY_ESTABLISHED facts the projection remains optional under the existing grounding semantics.
  */
 public record ProcessKnownFact(
         ProcessKnownFactId id,
@@ -17,7 +26,8 @@ public record ProcessKnownFact(
         ProcessFactGrounding grounding,
         ProcessAnalysisScope scope,
         List<ProcessKnownFactId> premiseFactIds,
-        List<ProcessEvidenceArtifactId> evidenceArtifactIds) {
+        List<ProcessEvidenceArtifactId> evidenceArtifactIds,
+        Optional<ProcessComputableProjection> computableProjection) {
 
     public ProcessKnownFact {
         id = Objects.requireNonNull(id, "id");
@@ -26,8 +36,19 @@ public record ProcessKnownFact(
         scope = Objects.requireNonNull(scope, "scope");
         premiseFactIds = List.copyOf(premiseFactIds);
         evidenceArtifactIds = List.copyOf(evidenceArtifactIds);
+        computableProjection = Objects.requireNonNull(computableProjection, "computableProjection");
         validatePremiseFactIds(grounding, premiseFactIds);
         validateEvidenceArtifactIds(grounding, evidenceArtifactIds);
+    }
+
+    public ProcessKnownFact(
+            ProcessKnownFactId id,
+            String statement,
+            ProcessFactGrounding grounding,
+            ProcessAnalysisScope scope,
+            List<ProcessKnownFactId> premiseFactIds,
+            List<ProcessEvidenceArtifactId> evidenceArtifactIds) {
+        this(id, statement, grounding, scope, premiseFactIds, evidenceArtifactIds, Optional.empty());
     }
 
     private static String requireNonBlank(String value, String name) {
