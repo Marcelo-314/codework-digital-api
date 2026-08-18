@@ -21,6 +21,7 @@ public record ProcessAnalysisStructure(
 
         for (ProcessKnownFact knownFact : knowledge.knownFacts()) {
             validateScope(operationIds, knownFact.scope(), "known fact");
+            validateEvidenceReferences(evidenceBase, knownFact);
         }
         for (ProcessInference inference : knowledge.inferences()) {
             validateScope(operationIds, inference.scope(), "inference");
@@ -39,5 +40,40 @@ public record ProcessAnalysisStructure(
                 throw new IllegalArgumentException(owner + " scope references an unknown operation: " + operationId);
             }
         }
+    }
+
+    private static void validateEvidenceReferences(ProcessEvidenceBase evidenceBase, ProcessKnownFact knownFact) {
+        ProcessEvidenceArtifactKind requiredKind = requiredEvidenceKind(knownFact.grounding());
+        for (ProcessEvidenceArtifactId artifactId : knownFact.evidenceArtifactIds()) {
+            ProcessEvidenceArtifact artifact = findArtifact(evidenceBase, artifactId);
+            if (artifact == null) {
+                throw new IllegalArgumentException(
+                        "known fact references an unknown evidence artifact: " + artifactId.value());
+            }
+            if (artifact.kind() != requiredKind) {
+                throw new IllegalArgumentException("known fact grounding " + knownFact.grounding()
+                        + " is incompatible with evidence artifact " + artifactId.value()
+                        + " kind " + artifact.kind());
+            }
+        }
+    }
+
+    private static ProcessEvidenceArtifactKind requiredEvidenceKind(ProcessFactGrounding grounding) {
+        return switch (grounding) {
+            case SOURCE_STATED -> ProcessEvidenceArtifactKind.SOURCE_MATERIAL;
+            case EMPIRICALLY_ESTABLISHED -> ProcessEvidenceArtifactKind.EMPIRICAL_RESULT;
+            case DETERMINISTICALLY_DERIVED -> null;
+        };
+    }
+
+    private static ProcessEvidenceArtifact findArtifact(
+            ProcessEvidenceBase evidenceBase,
+            ProcessEvidenceArtifactId artifactId) {
+        for (ProcessEvidenceArtifact artifact : evidenceBase.artifacts()) {
+            if (artifact.id().equals(artifactId)) {
+                return artifact;
+            }
+        }
+        return null;
     }
 }

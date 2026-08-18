@@ -14,7 +14,8 @@ class ProcessAnalysisStructureTest {
                 List.of(new ProcessKnownFact(
                         "Orders are reviewed",
                         ProcessFactGrounding.SOURCE_STATED,
-                        ProcessAnalysisScope.processWide())),
+                        ProcessAnalysisScope.processWide(),
+                        List.of(artifactId("source-1")))),
                 List.of(new ProcessInference(
                         "Routing may depend on request category",
                         ProcessAnalysisScope.processWide())),
@@ -29,7 +30,7 @@ class ProcessAnalysisStructureTest {
                         "Whether release can be automated",
                         ProcessAnalysisScope.processWide())));
 
-        assertThatCode(() -> new ProcessAnalysisStructure(graph(), emptyEvidenceBase(), knowledge))
+        assertThatCode(() -> new ProcessAnalysisStructure(graph(), sourceEvidenceBase(), knowledge))
                 .doesNotThrowAnyException();
     }
 
@@ -39,12 +40,13 @@ class ProcessAnalysisStructureTest {
                 List.of(new ProcessKnownFact(
                         "Validation happens before review",
                         ProcessFactGrounding.SOURCE_STATED,
-                        ProcessAnalysisScope.operation("validate"))),
+                        ProcessAnalysisScope.operation("validate"),
+                        List.of(artifactId("source-1")))),
                 List.of(),
                 List.of(),
                 List.of());
 
-        assertThatCode(() -> new ProcessAnalysisStructure(graph(), emptyEvidenceBase(), knowledge))
+        assertThatCode(() -> new ProcessAnalysisStructure(graph(), sourceEvidenceBase(), knowledge))
                 .doesNotThrowAnyException();
     }
 
@@ -86,12 +88,13 @@ class ProcessAnalysisStructureTest {
                 List.of(new ProcessKnownFact(
                         "Review and revision can repeat",
                         ProcessFactGrounding.SOURCE_STATED,
-                        ProcessAnalysisScope.operations(List.of("review", "revise", "validate")))),
+                        ProcessAnalysisScope.operations(List.of("review", "revise", "validate")),
+                        List.of(artifactId("source-1")))),
                 List.of(),
                 List.of(),
                 List.of());
 
-        assertThatCode(() -> new ProcessAnalysisStructure(graph(), emptyEvidenceBase(), knowledge))
+        assertThatCode(() -> new ProcessAnalysisStructure(graph(), sourceEvidenceBase(), knowledge))
                 .doesNotThrowAnyException();
     }
 
@@ -101,12 +104,13 @@ class ProcessAnalysisStructureTest {
                 List.of(new ProcessKnownFact(
                         "Escalation happens",
                         ProcessFactGrounding.SOURCE_STATED,
-                        ProcessAnalysisScope.operation("escalate"))),
+                        ProcessAnalysisScope.operation("escalate"),
+                        List.of(artifactId("source-1")))),
                 List.of(),
                 List.of(),
                 List.of());
 
-        assertThatThrownBy(() -> new ProcessAnalysisStructure(graph(), emptyEvidenceBase(), knowledge))
+        assertThatThrownBy(() -> new ProcessAnalysisStructure(graph(), sourceEvidenceBase(), knowledge))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("known fact scope references an unknown operation: escalate");
     }
@@ -215,6 +219,93 @@ class ProcessAnalysisStructureTest {
     }
 
     @Test
+    void acceptsSourceStatedFactReferencingExistingSourceMaterial() {
+        ProcessAnalysisKnowledge knowledge = new ProcessAnalysisKnowledge(
+                List.of(new ProcessKnownFact(
+                        "Orders require manual review",
+                        ProcessFactGrounding.SOURCE_STATED,
+                        ProcessAnalysisScope.processWide(),
+                        List.of(artifactId("source-1")))),
+                List.of(),
+                List.of(),
+                List.of());
+
+        assertThatCode(() -> new ProcessAnalysisStructure(graph(), sourceEvidenceBase(), knowledge))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void acceptsEmpiricallyEstablishedFactReferencingExistingEmpiricalResult() {
+        ProcessAnalysisKnowledge knowledge = new ProcessAnalysisKnowledge(
+                List.of(new ProcessKnownFact(
+                        "Observed average handling time is 2.4 minutes",
+                        ProcessFactGrounding.EMPIRICALLY_ESTABLISHED,
+                        ProcessAnalysisScope.processWide(),
+                        List.of(artifactId("measurement-1")))),
+                List.of(),
+                List.of(),
+                List.of());
+
+        assertThatCode(() -> new ProcessAnalysisStructure(graph(), empiricalEvidenceBase(), knowledge))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void rejectsKnownFactReferencingUnknownEvidenceArtifact() {
+        ProcessAnalysisKnowledge knowledge = new ProcessAnalysisKnowledge(
+                List.of(new ProcessKnownFact(
+                        "Orders require manual review",
+                        ProcessFactGrounding.SOURCE_STATED,
+                        ProcessAnalysisScope.processWide(),
+                        List.of(artifactId("missing-source")))),
+                List.of(),
+                List.of(),
+                List.of());
+
+        assertThatThrownBy(() -> new ProcessAnalysisStructure(graph(), sourceEvidenceBase(), knowledge))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("known fact references an unknown evidence artifact: missing-source");
+    }
+
+    @Test
+    void rejectsSourceStatedFactReferencingEmpiricalResult() {
+        ProcessAnalysisKnowledge knowledge = new ProcessAnalysisKnowledge(
+                List.of(new ProcessKnownFact(
+                        "Orders require manual review",
+                        ProcessFactGrounding.SOURCE_STATED,
+                        ProcessAnalysisScope.processWide(),
+                        List.of(artifactId("measurement-1")))),
+                List.of(),
+                List.of(),
+                List.of());
+
+        assertThatThrownBy(() -> new ProcessAnalysisStructure(graph(), empiricalEvidenceBase(), knowledge))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("SOURCE_STATED")
+                .hasMessageContaining("measurement-1")
+                .hasMessageContaining("EMPIRICAL_RESULT");
+    }
+
+    @Test
+    void rejectsEmpiricallyEstablishedFactReferencingSourceMaterial() {
+        ProcessAnalysisKnowledge knowledge = new ProcessAnalysisKnowledge(
+                List.of(new ProcessKnownFact(
+                        "Observed average handling time is 2.4 minutes",
+                        ProcessFactGrounding.EMPIRICALLY_ESTABLISHED,
+                        ProcessAnalysisScope.processWide(),
+                        List.of(artifactId("source-1")))),
+                List.of(),
+                List.of(),
+                List.of());
+
+        assertThatThrownBy(() -> new ProcessAnalysisStructure(graph(), sourceEvidenceBase(), knowledge))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("EMPIRICALLY_ESTABLISHED")
+                .hasMessageContaining("source-1")
+                .hasMessageContaining("SOURCE_MATERIAL");
+    }
+
+    @Test
     void rejectsNullEvidenceBase() {
         ProcessAnalysisKnowledge knowledge = new ProcessAnalysisKnowledge(List.of(), List.of(), List.of(), List.of());
 
@@ -241,5 +332,23 @@ class ProcessAnalysisStructureTest {
 
     private static ProcessEvidenceBase emptyEvidenceBase() {
         return new ProcessEvidenceBase(List.of());
+    }
+
+    private static ProcessEvidenceBase sourceEvidenceBase() {
+        return new ProcessEvidenceBase(List.of(new ProcessEvidenceArtifact(
+                artifactId("source-1"),
+                ProcessEvidenceArtifactKind.SOURCE_MATERIAL,
+                "Source material stating the review rule")));
+    }
+
+    private static ProcessEvidenceBase empiricalEvidenceBase() {
+        return new ProcessEvidenceBase(List.of(new ProcessEvidenceArtifact(
+                artifactId("measurement-1"),
+                ProcessEvidenceArtifactKind.EMPIRICAL_RESULT,
+                "Measured operation duration sample")));
+    }
+
+    private static ProcessEvidenceArtifactId artifactId(String value) {
+        return new ProcessEvidenceArtifactId(value);
     }
 }
