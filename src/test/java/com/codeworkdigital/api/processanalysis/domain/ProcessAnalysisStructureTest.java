@@ -12,6 +12,7 @@ class ProcessAnalysisStructureTest {
     void acceptsProcessWideKnowledge() {
         ProcessAnalysisKnowledge knowledge = new ProcessAnalysisKnowledge(
                 List.of(new ProcessKnownFact(
+                        factId("fact-1"),
                         "Orders are reviewed",
                         ProcessFactGrounding.SOURCE_STATED,
                         ProcessAnalysisScope.processWide(),
@@ -38,6 +39,7 @@ class ProcessAnalysisStructureTest {
     void acceptsOperationScopedKnownFact() {
         ProcessAnalysisKnowledge knowledge = new ProcessAnalysisKnowledge(
                 List.of(new ProcessKnownFact(
+                        factId("fact-1"),
                         "Validation happens before review",
                         ProcessFactGrounding.SOURCE_STATED,
                         ProcessAnalysisScope.operation("validate"),
@@ -86,6 +88,7 @@ class ProcessAnalysisStructureTest {
     void acceptsMultiOperationScope() {
         ProcessAnalysisKnowledge knowledge = new ProcessAnalysisKnowledge(
                 List.of(new ProcessKnownFact(
+                        factId("fact-1"),
                         "Review and revision can repeat",
                         ProcessFactGrounding.SOURCE_STATED,
                         ProcessAnalysisScope.operations(List.of("review", "revise", "validate")),
@@ -102,6 +105,7 @@ class ProcessAnalysisStructureTest {
     void rejectsUnknownOperationReferencedByKnownFact() {
         ProcessAnalysisKnowledge knowledge = new ProcessAnalysisKnowledge(
                 List.of(new ProcessKnownFact(
+                        factId("fact-1"),
                         "Escalation happens",
                         ProcessFactGrounding.SOURCE_STATED,
                         ProcessAnalysisScope.operation("escalate"),
@@ -222,6 +226,7 @@ class ProcessAnalysisStructureTest {
     void acceptsSourceStatedFactReferencingExistingSourceMaterial() {
         ProcessAnalysisKnowledge knowledge = new ProcessAnalysisKnowledge(
                 List.of(new ProcessKnownFact(
+                        factId("fact-1"),
                         "Orders require manual review",
                         ProcessFactGrounding.SOURCE_STATED,
                         ProcessAnalysisScope.processWide(),
@@ -238,6 +243,7 @@ class ProcessAnalysisStructureTest {
     void acceptsEmpiricallyEstablishedFactReferencingExistingEmpiricalResult() {
         ProcessAnalysisKnowledge knowledge = new ProcessAnalysisKnowledge(
                 List.of(new ProcessKnownFact(
+                        factId("fact-1"),
                         "Observed average handling time is 2.4 minutes",
                         ProcessFactGrounding.EMPIRICALLY_ESTABLISHED,
                         ProcessAnalysisScope.processWide(),
@@ -254,6 +260,7 @@ class ProcessAnalysisStructureTest {
     void rejectsKnownFactReferencingUnknownEvidenceArtifact() {
         ProcessAnalysisKnowledge knowledge = new ProcessAnalysisKnowledge(
                 List.of(new ProcessKnownFact(
+                        factId("fact-1"),
                         "Orders require manual review",
                         ProcessFactGrounding.SOURCE_STATED,
                         ProcessAnalysisScope.processWide(),
@@ -271,6 +278,7 @@ class ProcessAnalysisStructureTest {
     void rejectsSourceStatedFactReferencingEmpiricalResult() {
         ProcessAnalysisKnowledge knowledge = new ProcessAnalysisKnowledge(
                 List.of(new ProcessKnownFact(
+                        factId("fact-1"),
                         "Orders require manual review",
                         ProcessFactGrounding.SOURCE_STATED,
                         ProcessAnalysisScope.processWide(),
@@ -290,6 +298,7 @@ class ProcessAnalysisStructureTest {
     void rejectsEmpiricallyEstablishedFactReferencingSourceMaterial() {
         ProcessAnalysisKnowledge knowledge = new ProcessAnalysisKnowledge(
                 List.of(new ProcessKnownFact(
+                        factId("fact-1"),
                         "Observed average handling time is 2.4 minutes",
                         ProcessFactGrounding.EMPIRICALLY_ESTABLISHED,
                         ProcessAnalysisScope.processWide(),
@@ -350,5 +359,9 @@ class ProcessAnalysisStructureTest {
 
     private static ProcessEvidenceArtifactId artifactId(String value) {
         return new ProcessEvidenceArtifactId(value);
+    }
+
+    private static ProcessKnownFactId factId(String value) {
+        return new ProcessKnownFactId(value);
     }
 }

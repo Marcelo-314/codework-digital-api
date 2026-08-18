@@ -6,12 +6,14 @@ import java.util.Objects;
 import java.util.Set;
 
 public record ProcessKnownFact(
+        ProcessKnownFactId id,
         String statement,
         ProcessFactGrounding grounding,
         ProcessAnalysisScope scope,
         List<ProcessEvidenceArtifactId> evidenceArtifactIds) {
 
     public ProcessKnownFact {
+        id = Objects.requireNonNull(id, "id");
         statement = requireNonBlank(statement, "statement");
         grounding = Objects.requireNonNull(grounding, "grounding");
         scope = Objects.requireNonNull(scope, "scope");
