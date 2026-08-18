@@ -18,6 +18,7 @@ class ProcessAnalysisKnowledgeTest {
                 "Orders are reviewed before fulfillment",
                 ProcessFactGrounding.SOURCE_STATED,
                 processWide,
+                List.of(),
                 List.of(artifactId("source-1")));
         ProcessInference inference = new ProcessInference("Routing may depend on request category", processWide);
         ProcessEvidenceGap gap = new ProcessEvidenceGap(
@@ -47,6 +48,7 @@ class ProcessAnalysisKnowledgeTest {
                 "Requests arrive through a form",
                 ProcessFactGrounding.SOURCE_STATED,
                 ProcessAnalysisScope.processWide(),
+                List.of(),
                 List.of(artifactId("source-1")));
 
         assertThat(fact.id()).isEqualTo(factId("fact-1"));
@@ -61,6 +63,7 @@ class ProcessAnalysisKnowledgeTest {
                 "The measured monthly average is 3,986 requests",
                 ProcessFactGrounding.EMPIRICALLY_ESTABLISHED,
                 ProcessAnalysisScope.processWide(),
+                List.of(),
                 List.of(artifactId("measurement-1")));
 
         assertThat(fact.grounding()).isEqualTo(ProcessFactGrounding.EMPIRICALLY_ESTABLISHED);
@@ -68,20 +71,23 @@ class ProcessAnalysisKnowledgeTest {
     }
 
     @Test
-    void acceptsDeterministicallyDerivedKnownFactWithoutInference() {
+    void acceptsDeterministicallyDerivedKnownFactWithPremiseFacts() {
+        ProcessKnownFact premise = sourceFact("fact-0", "4,000 requests are handled monthly", "source-1");
         ProcessKnownFact fact = new ProcessKnownFact(
                 factId("fact-1"),
                 "4,000 requests at 2 minutes each is 8,000 minutes",
                 ProcessFactGrounding.DETERMINISTICALLY_DERIVED,
                 ProcessAnalysisScope.processWide(),
+                List.of(factId("fact-0")),
                 List.of());
 
         ProcessAnalysisKnowledge knowledge =
-                new ProcessAnalysisKnowledge(List.of(fact), List.of(), List.of(), List.of());
+                new ProcessAnalysisKnowledge(List.of(premise, fact), List.of(), List.of(), List.of());
 
-        assertThat(knowledge.knownFacts()).containsExactly(fact);
+        assertThat(knowledge.knownFacts()).containsExactly(premise, fact);
         assertThat(knowledge.inferences()).isEmpty();
         assertThat(fact.grounding()).isEqualTo(ProcessFactGrounding.DETERMINISTICALLY_DERIVED);
+        assertThat(fact.premiseFactIds()).containsExactly(factId("fact-0"));
         assertThat(fact.evidenceArtifactIds()).isEmpty();
     }
 
@@ -92,6 +98,7 @@ class ProcessAnalysisKnowledgeTest {
                         "Requests arrive through a form",
                         ProcessFactGrounding.SOURCE_STATED,
                         ProcessAnalysisScope.processWide(),
+                        List.of(),
                         List.of()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("SOURCE_STATED known facts require evidence artifact ids");
@@ -104,6 +111,7 @@ class ProcessAnalysisKnowledgeTest {
                         "The measured monthly average is 3,986 requests",
                         ProcessFactGrounding.EMPIRICALLY_ESTABLISHED,
                         ProcessAnalysisScope.processWide(),
+                        List.of(),
                         List.of()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("EMPIRICALLY_ESTABLISHED known facts require evidence artifact ids");
@@ -116,6 +124,7 @@ class ProcessAnalysisKnowledgeTest {
                         "4,000 requests at 2 minutes each is 8,000 minutes",
                         ProcessFactGrounding.DETERMINISTICALLY_DERIVED,
                         ProcessAnalysisScope.processWide(),
+                        List.of(factId("fact-0")),
                         List.of(artifactId("artifact-1"))))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("DETERMINISTICALLY_DERIVED known facts do not accept evidence artifact ids");
@@ -128,6 +137,7 @@ class ProcessAnalysisKnowledgeTest {
                         "Requests arrive through a form",
                         ProcessFactGrounding.SOURCE_STATED,
                         ProcessAnalysisScope.processWide(),
+                        List.of(),
                         List.of(artifactId("source-1"), artifactId("source-1"))))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("known fact evidence artifact id must be unique: source-1");
@@ -142,6 +152,7 @@ class ProcessAnalysisKnowledgeTest {
                 "Requests arrive through a form",
                 ProcessFactGrounding.SOURCE_STATED,
                 ProcessAnalysisScope.processWide(),
+                List.of(),
                 artifactIds);
 
         artifactIds.clear();
@@ -193,6 +204,7 @@ class ProcessAnalysisKnowledgeTest {
                         " ",
                         ProcessFactGrounding.SOURCE_STATED,
                         processWide,
+                        List.of(),
                         List.of(artifactId("source-1"))))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new ProcessKnownFact(
@@ -200,6 +212,7 @@ class ProcessAnalysisKnowledgeTest {
                         "fact",
                         ProcessFactGrounding.SOURCE_STATED,
                         processWide,
+                        List.of(),
                         List.of(artifactId("source-1"))))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new ProcessKnownFact(
@@ -207,12 +220,22 @@ class ProcessAnalysisKnowledgeTest {
                         "fact",
                         null,
                         processWide,
+                        List.of(),
                         List.of(artifactId("source-1"))))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new ProcessKnownFact(
                         factId("fact-1"),
                         "fact",
                         ProcessFactGrounding.SOURCE_STATED,
+                        null,
+                        List.of(),
+                        List.of(artifactId("source-1"))))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new ProcessKnownFact(
+                        factId("fact-1"),
+                        "fact",
+                        ProcessFactGrounding.SOURCE_STATED,
+                        processWide,
                         null,
                         List.of(artifactId("source-1"))))
                 .isInstanceOf(NullPointerException.class);
@@ -221,6 +244,15 @@ class ProcessAnalysisKnowledgeTest {
                         "fact",
                         ProcessFactGrounding.SOURCE_STATED,
                         processWide,
+                        listWithNull(factId("fact-0")),
+                        List.of(artifactId("source-1"))))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new ProcessKnownFact(
+                        factId("fact-1"),
+                        "fact",
+                        ProcessFactGrounding.SOURCE_STATED,
+                        processWide,
+                        List.of(),
                         null))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new ProcessKnownFact(
@@ -228,6 +260,7 @@ class ProcessAnalysisKnowledgeTest {
                         "fact",
                         ProcessFactGrounding.SOURCE_STATED,
                         processWide,
+                        List.of(),
                         listWithNull(artifactId("source-1"))))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new ProcessInference(" ", processWide))
@@ -266,6 +299,7 @@ class ProcessAnalysisKnowledgeTest {
                 "Orders are reviewed",
                 ProcessFactGrounding.SOURCE_STATED,
                 processWide,
+                List.of(),
                 List.of(artifactId("source-1")));
         ProcessInference inference = new ProcessInference("Routing may depend on request category", processWide);
         ProcessEvidenceGap gap = new ProcessEvidenceGap(
@@ -313,6 +347,7 @@ class ProcessAnalysisKnowledgeTest {
                 "Orders are reviewed",
                 ProcessFactGrounding.SOURCE_STATED,
                 processWide,
+                List.of(),
                 List.of(artifactId("source-1")));
         ProcessInference inference = new ProcessInference("Routing may depend on request category", processWide);
         ProcessEvidenceGap gap = new ProcessEvidenceGap(
@@ -347,6 +382,7 @@ class ProcessAnalysisKnowledgeTest {
                         "new fact",
                         ProcessFactGrounding.SOURCE_STATED,
                         processWide,
+                        List.of(),
                         List.of(artifactId("source-2")))))
                 .isInstanceOf(UnsupportedOperationException.class);
         assertThatThrownBy(() -> knowledge.inferences().add(new ProcessInference("new inference", processWide)))
@@ -393,6 +429,155 @@ class ProcessAnalysisKnowledgeTest {
                 .hasMessageContaining("known fact id must be unique: fact-1");
     }
 
+    @Test
+    void sourceStatedKnownFactRejectsPremiseFactIds() {
+        assertThatThrownBy(() -> new ProcessKnownFact(
+                        factId("fact-1"),
+                        "Requests arrive through a form",
+                        ProcessFactGrounding.SOURCE_STATED,
+                        ProcessAnalysisScope.processWide(),
+                        List.of(factId("fact-0")),
+                        List.of(artifactId("source-1"))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("SOURCE_STATED known facts do not accept premise fact ids");
+    }
+
+    @Test
+    void empiricallyEstablishedKnownFactRejectsPremiseFactIds() {
+        assertThatThrownBy(() -> new ProcessKnownFact(
+                        factId("fact-1"),
+                        "The measured monthly average is 3,986 requests",
+                        ProcessFactGrounding.EMPIRICALLY_ESTABLISHED,
+                        ProcessAnalysisScope.processWide(),
+                        List.of(factId("fact-0")),
+                        List.of(artifactId("measurement-1"))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("EMPIRICALLY_ESTABLISHED known facts do not accept premise fact ids");
+    }
+
+    @Test
+    void deterministicallyDerivedKnownFactRequiresPremiseFactIds() {
+        assertThatThrownBy(() -> new ProcessKnownFact(
+                        factId("fact-1"),
+                        "4,000 requests at 2 minutes each is 8,000 minutes",
+                        ProcessFactGrounding.DETERMINISTICALLY_DERIVED,
+                        ProcessAnalysisScope.processWide(),
+                        List.of(),
+                        List.of()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("DETERMINISTICALLY_DERIVED known facts require premise fact ids");
+    }
+
+    @Test
+    void deterministicallyDerivedKnownFactAcceptsMultipleDistinctPremiseFactIds() {
+        ProcessKnownFact fact = derivedFact(
+                "fact-3",
+                "The total effort is 8,000 minutes",
+                List.of(factId("fact-1"), factId("fact-2")));
+
+        assertThat(fact.premiseFactIds()).containsExactly(factId("fact-1"), factId("fact-2"));
+    }
+
+    @Test
+    void knownFactRejectsDuplicatePremiseFactIds() {
+        assertThatThrownBy(() -> derivedFact(
+                        "fact-3",
+                        "The total effort is 8,000 minutes",
+                        List.of(factId("fact-1"), factId("fact-1"))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("known fact premise fact id must be unique: fact-1");
+    }
+
+    @Test
+    void knownFactDefensivelyCopiesAndReturnsImmutablePremiseFactIds() {
+        List<ProcessKnownFactId> premiseFactIds = new ArrayList<>(List.of(factId("fact-1")));
+
+        ProcessKnownFact fact = derivedFact("fact-2", "Derived fact", premiseFactIds);
+
+        premiseFactIds.clear();
+
+        assertThat(fact.premiseFactIds()).containsExactly(factId("fact-1"));
+        assertThatThrownBy(() -> fact.premiseFactIds().add(factId("fact-3")))
+                .isInstanceOf(UnsupportedOperationException.class);
+    }
+
+    @Test
+    void acceptsKnownFactReferencingExistingPremise() {
+        ProcessKnownFact premise = sourceFact("fact-1", "Orders are reviewed", "source-1");
+        ProcessKnownFact derived = derivedFact("fact-2", "Reviewed orders are ready", List.of(factId("fact-1")));
+
+        ProcessAnalysisKnowledge knowledge =
+                new ProcessAnalysisKnowledge(List.of(premise, derived), List.of(), List.of(), List.of());
+
+        assertThat(knowledge.knownFacts()).containsExactly(premise, derived);
+    }
+
+    @Test
+    void rejectsUnknownPremiseFactId() {
+        ProcessKnownFact derived = derivedFact("fact-2", "Reviewed orders are ready", List.of(factId("missing-fact")));
+
+        assertThatThrownBy(() -> new ProcessAnalysisKnowledge(List.of(derived), List.of(), List.of(), List.of()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("known fact references an unknown premise fact: missing-fact");
+    }
+
+    @Test
+    void rejectsSelfReferencingPremiseFactId() {
+        ProcessKnownFact derived = derivedFact("fact-1", "Derived fact", List.of(factId("fact-1")));
+
+        assertThatThrownBy(() -> new ProcessAnalysisKnowledge(List.of(derived), List.of(), List.of(), List.of()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("known fact cannot reference itself as a premise: fact-1");
+    }
+
+    @Test
+    void rejectsDirectTwoNodeKnownFactPremiseCycle() {
+        ProcessKnownFact first = derivedFact("fact-1", "First derived fact", List.of(factId("fact-2")));
+        ProcessKnownFact second = derivedFact("fact-2", "Second derived fact", List.of(factId("fact-1")));
+
+        assertThatThrownBy(() -> new ProcessAnalysisKnowledge(List.of(first, second), List.of(), List.of(), List.of()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("cyclic known-fact premise relationship");
+    }
+
+    @Test
+    void rejectsIndirectKnownFactPremiseCycle() {
+        ProcessKnownFact first = derivedFact("fact-1", "First derived fact", List.of(factId("fact-3")));
+        ProcessKnownFact second = derivedFact("fact-2", "Second derived fact", List.of(factId("fact-1")));
+        ProcessKnownFact third = derivedFact("fact-3", "Third derived fact", List.of(factId("fact-2")));
+
+        assertThatThrownBy(
+                        () -> new ProcessAnalysisKnowledge(List.of(first, second, third), List.of(), List.of(), List.of()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("cyclic known-fact premise relationship");
+    }
+
+    @Test
+    void acceptsAcyclicChainOfDerivedKnownFacts() {
+        ProcessKnownFact source = sourceFact("fact-1", "Orders are reviewed", "source-1");
+        ProcessKnownFact firstDerived = derivedFact("fact-2", "Reviewed orders are ready", List.of(factId("fact-1")));
+        ProcessKnownFact secondDerived = derivedFact("fact-3", "Ready orders can ship", List.of(factId("fact-2")));
+
+        ProcessAnalysisKnowledge knowledge = new ProcessAnalysisKnowledge(
+                List.of(source, firstDerived, secondDerived),
+                List.of(),
+                List.of(),
+                List.of());
+
+        assertThat(knowledge.knownFacts()).containsExactly(source, firstDerived, secondDerived);
+    }
+
+    @Test
+    void knownFactListOrderDoesNotAffectPremiseReferenceValidity() {
+        ProcessKnownFact source = sourceFact("fact-1", "Orders are reviewed", "source-1");
+        ProcessKnownFact derived = derivedFact("fact-2", "Reviewed orders are ready", List.of(factId("fact-1")));
+
+        ProcessAnalysisKnowledge knowledge =
+                new ProcessAnalysisKnowledge(List.of(derived, source), List.of(), List.of(), List.of());
+
+        assertThat(knowledge.knownFacts()).containsExactly(derived, source);
+    }
+
     private static <T> List<T> listWithNull(T item) {
         List<T> items = new ArrayList<>();
         items.add(item);
@@ -414,6 +599,20 @@ class ProcessAnalysisKnowledgeTest {
                 statement,
                 ProcessFactGrounding.SOURCE_STATED,
                 ProcessAnalysisScope.processWide(),
+                List.of(),
                 List.of(artifactId(artifactId)));
+    }
+
+    private static ProcessKnownFact derivedFact(
+            String id,
+            String statement,
+            List<ProcessKnownFactId> premiseFactIds) {
+        return new ProcessKnownFact(
+                factId(id),
+                statement,
+                ProcessFactGrounding.DETERMINISTICALLY_DERIVED,
+                ProcessAnalysisScope.processWide(),
+                premiseFactIds,
+                List.of());
     }
 }

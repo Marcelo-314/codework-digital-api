@@ -5,11 +5,18 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
+/**
+ * Established proposition inside process-analysis knowledge.
+ *
+ * premiseFactIds identifies the established propositions used as immediate premises. It does not represent a formula,
+ * calculation, transformation, rule, proof, or executable specification.
+ */
 public record ProcessKnownFact(
         ProcessKnownFactId id,
         String statement,
         ProcessFactGrounding grounding,
         ProcessAnalysisScope scope,
+        List<ProcessKnownFactId> premiseFactIds,
         List<ProcessEvidenceArtifactId> evidenceArtifactIds) {
 
     public ProcessKnownFact {
@@ -17,7 +24,9 @@ public record ProcessKnownFact(
         statement = requireNonBlank(statement, "statement");
         grounding = Objects.requireNonNull(grounding, "grounding");
         scope = Objects.requireNonNull(scope, "scope");
+        premiseFactIds = List.copyOf(premiseFactIds);
         evidenceArtifactIds = List.copyOf(evidenceArtifactIds);
+        validatePremiseFactIds(grounding, premiseFactIds);
         validateEvidenceArtifactIds(grounding, evidenceArtifactIds);
     }
 
@@ -50,6 +59,32 @@ public record ProcessKnownFact(
                 if (!evidenceArtifactIds.isEmpty()) {
                     throw new IllegalArgumentException(
                             "DETERMINISTICALLY_DERIVED known facts do not accept evidence artifact ids");
+                }
+            }
+        }
+    }
+
+    private static void validatePremiseFactIds(
+            ProcessFactGrounding grounding,
+            List<ProcessKnownFactId> premiseFactIds) {
+        Set<ProcessKnownFactId> uniquePremiseFactIds = new HashSet<>();
+        for (ProcessKnownFactId premiseFactId : premiseFactIds) {
+            if (!uniquePremiseFactIds.add(premiseFactId)) {
+                throw new IllegalArgumentException("known fact premise fact id must be unique: "
+                        + premiseFactId.value());
+            }
+        }
+
+        switch (grounding) {
+            case SOURCE_STATED, EMPIRICALLY_ESTABLISHED -> {
+                if (!premiseFactIds.isEmpty()) {
+                    throw new IllegalArgumentException(grounding + " known facts do not accept premise fact ids");
+                }
+            }
+            case DETERMINISTICALLY_DERIVED -> {
+                if (premiseFactIds.isEmpty()) {
+                    throw new IllegalArgumentException(
+                            "DETERMINISTICALLY_DERIVED known facts require premise fact ids");
                 }
             }
         }
