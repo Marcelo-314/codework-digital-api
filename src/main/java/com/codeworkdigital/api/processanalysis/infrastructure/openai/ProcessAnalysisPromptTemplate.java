@@ -4,7 +4,7 @@ import com.codeworkdigital.api.processanalysis.application.ProcessAnalysisLocale
 
 final class ProcessAnalysisPromptTemplate {
 
-    private static final String PROMPT_VERSION = "process-analysis-understanding-v3";
+    private static final String PROMPT_VERSION = "process-analysis-understanding-v4";
 
     private ProcessAnalysisPromptTemplate() {
     }
@@ -42,6 +42,15 @@ final class ProcessAnalysisPromptTemplate {
                 Use short stable stage ids in ASCII lowercase kebab-case.
                 Keep each observation, inference, and validation question brief and self-contained.
                 The preliminaryAssessment must be explicitly preliminary and mention important uncertainties when they exist.
+                Extract effortEvidence from the same description in the same response; do not make a second analysis.
+                effortEvidence.volumePerReportingPeriod is the business-item count per reporting period.
+                effortEvidence.effortPerBusinessItem is the manual effort duration per one business item.
+                Use status EXACT only for exact scalar quantities stated by the source.
+                Use APPROXIMATE for approximate quantities, RANGE for min/max ranges, ABSENT when the quantity is unavailable, and UNSUPPORTED_UNIT when a quantity exists in a unit not listed by the schema.
+                Do not convert units. Do not collapse a RANGE to a scalar. Do not promote APPROXIMATE wording to EXACT.
+                businessItemRef is an opaque local identifier within this single response. Use the same ref for equivalent item mentions and different refs for distinct item concepts.
+                businessItemLabel is only a short descriptive label and is not a structural identifier.
+                ABSENT means the quantity is unavailable; businessItemRef and businessItemLabel may still be present when the missing quantity's subject is clear.
                 Never include marketing language. Never mention CodeWork Digital. Never recommend AI.
                 """.formatted(PROMPT_VERSION, localeLanguage(locale));
     }

@@ -34,7 +34,8 @@ class ProcessUnderstandingValidatorTest {
                 List.of(),
                 List.of(),
                 List.of(),
-                "");
+                "",
+                emptyEffortEvidence());
 
         assertThatThrownBy(() -> ProcessUnderstandingValidator.validate(draft))
                 .isInstanceOf(InvalidProcessAnalysisModelResponseException.class)
@@ -50,7 +51,8 @@ class ProcessUnderstandingValidatorTest {
                 List.of(),
                 List.of(),
                 List.of(),
-                "");
+                "",
+                emptyEffortEvidence());
 
         assertThatCode(() -> ProcessUnderstandingValidator.validate(draft)).doesNotThrowAnyException();
     }
@@ -63,7 +65,8 @@ class ProcessUnderstandingValidatorTest {
                 List.of(),
                 List.of(),
                 List.of(),
-                "");
+                "",
+                emptyEffortEvidence());
 
         assertThatCode(() -> ProcessUnderstandingValidator.validate(draft)).doesNotThrowAnyException();
     }
@@ -76,7 +79,8 @@ class ProcessUnderstandingValidatorTest {
                 List.of("Inference"),
                 List.of("Validation question"),
                 List.of(),
-                "This understanding is preliminary.");
+                "This understanding is preliminary.",
+                emptyEffortEvidence());
 
         assertThatThrownBy(() -> ProcessUnderstandingValidator.validate(draft))
                 .isInstanceOf(InvalidProcessAnalysisModelResponseException.class)
@@ -92,7 +96,8 @@ class ProcessUnderstandingValidatorTest {
                 List.of(),
                 List.of(),
                 List.of(),
-                "");
+                "",
+                emptyEffortEvidence());
 
         assertThatThrownBy(() -> ProcessUnderstandingValidator.validate(draft))
                 .isInstanceOf(InvalidProcessAnalysisModelResponseException.class)
@@ -118,6 +123,27 @@ class ProcessUnderstandingValidatorTest {
                         ProcessStageProvenance.OBSERVED,
                         ProcessStageOperationType.RECEIVE,
                         ProcessStageInputNature.UNSTRUCTURED)),
-                "This understanding is preliminary.");
+                "This understanding is preliminary.",
+                emptyEffortEvidence());
+    }
+
+    private ProcessEffortEvidence emptyEffortEvidence() {
+        return new ProcessEffortEvidence(
+                absentQuantity(),
+                absentQuantity());
+    }
+
+    private ProcessEffortEvidenceQuantity absentQuantity() {
+        return new ProcessEffortEvidenceQuantity(
+                ProcessEffortEvidenceQuantityStatus.ABSENT,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null);
     }
 }

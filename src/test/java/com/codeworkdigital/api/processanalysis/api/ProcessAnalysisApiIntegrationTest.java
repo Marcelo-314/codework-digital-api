@@ -6,8 +6,13 @@ import com.codeworkdigital.api.processanalysis.application.AnalyzeProcessDescrip
 import com.codeworkdigital.api.processanalysis.application.InvalidProcessAnalysisModelResponseException;
 import com.codeworkdigital.api.processanalysis.application.ProcessAnalysisApplicationService;
 import com.codeworkdigital.api.processanalysis.application.ProcessAnalysisModelClient;
+import com.codeworkdigital.api.processanalysis.application.ProcessAnalysisModelResult;
 import com.codeworkdigital.api.processanalysis.application.ProcessAnalysisUnavailableException;
 import com.codeworkdigital.api.processanalysis.application.ProcessAnalysisStatus;
+import com.codeworkdigital.api.processanalysis.application.ProcessEffortEvidence;
+import com.codeworkdigital.api.processanalysis.application.ProcessEffortEvidenceProjectionMapper;
+import com.codeworkdigital.api.processanalysis.application.ProcessEffortEvidenceQuantity;
+import com.codeworkdigital.api.processanalysis.application.ProcessEffortEvidenceQuantityStatus;
 import com.codeworkdigital.api.processanalysis.application.ProcessStageInputNature;
 import com.codeworkdigital.api.processanalysis.application.ProcessStageOperationType;
 import com.codeworkdigital.api.processanalysis.application.ProcessStageProvenance;
@@ -23,6 +28,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -90,6 +96,22 @@ class ProcessAnalysisApiIntegrationTest {
         assertThat((List<?>) body.get("observations")).isNotEmpty();
         assertThat((List<?>) body.get("stages")).hasSize(2);
         assertThat((List<?>) body.get("technologyFitAssessments")).hasSize(2);
+        assertThat(body.keySet()).containsExactlyInAnyOrder(
+                "processDescription",
+                "analysisStatus",
+                "observations",
+                "inferences",
+                "validationQuestions",
+                "stages",
+                "preliminaryAssessment",
+                "technologyFitAssessments");
+        assertThat(body).doesNotContainKeys(
+                "effortEvidence",
+                "volumeProjection",
+                "effortProjection",
+                "businessItemRef",
+                "businessItemLabel",
+                "composable");
         assertThat(processAnalysisModelClient.invocations).isEqualTo(1);
         assertThat(processAnalysisModelClient.lastCommand.description())
                 .isEqualTo("Recibimos pedidos por WhatsApp, verificamos stock y confirmamos entrega.");
@@ -353,6 +375,7 @@ class ProcessAnalysisApiIntegrationTest {
             ApiCorsConfiguration.class,
             ApiExceptionHandler.class,
             ContactRequestBodyLimitFilter.class,
+            ProcessEffortEvidenceProjectionMapper.class,
             TestConfig.class
     })
     static class TestApplication {
@@ -382,10 +405,10 @@ class ProcessAnalysisApiIntegrationTest {
         private Mode mode = Mode.SUCCESS;
 
         @Override
-        public ProcessUnderstanding analyze(AnalyzeProcessDescriptionCommand command) {
+        public ProcessAnalysisModelResult analyze(AnalyzeProcessDescriptionCommand command) {
             invocations++;
             lastCommand = command;
-            return switch (mode) {
+            ProcessUnderstanding understanding = switch (mode) {
                 case SUCCESS -> new ProcessUnderstanding(
                         command.description(),
                         List.of("El proceso recibe pedidos por mensajeria."),
@@ -426,12 +449,39 @@ class ProcessAnalysisApiIntegrationTest {
                 case UNAVAILABLE -> throw new ProcessAnalysisUnavailableException("simulated_unavailable");
                 case INVALID_RESPONSE -> throw new InvalidProcessAnalysisModelResponseException("simulated_invalid_response");
             };
+            return new ProcessAnalysisModelResult(understanding, exactEvidence());
         }
 
         void reset() {
             invocations = 0;
             lastCommand = null;
             mode = Mode.SUCCESS;
+        }
+
+        private ProcessEffortEvidence exactEvidence() {
+            return new ProcessEffortEvidence(
+                    new ProcessEffortEvidenceQuantity(
+                            ProcessEffortEvidenceQuantityStatus.EXACT,
+                            new BigDecimal("4"),
+                            null,
+                            null,
+                            "item-1",
+                            "pedido",
+                            com.codeworkdigital.api.processanalysis.domain.ProcessReportingPeriodUnit.MONTH,
+                            null,
+                            "4 pedidos por mes",
+                            null),
+                    new ProcessEffortEvidenceQuantity(
+                            ProcessEffortEvidenceQuantityStatus.EXACT,
+                            new BigDecimal("3"),
+                            null,
+                            null,
+                            "item-1",
+                            "pedido",
+                            null,
+                            com.codeworkdigital.api.processanalysis.domain.ProcessEffortDurationUnit.MINUTE,
+                            "3 minutos por pedido",
+                            null));
         }
     }
 }

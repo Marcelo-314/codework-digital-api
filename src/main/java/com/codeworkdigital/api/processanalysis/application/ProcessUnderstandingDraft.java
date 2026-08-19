@@ -8,5 +8,6 @@ public record ProcessUnderstandingDraft(
         List<String> inferences,
         List<String> validationQuestions,
         List<ProcessUnderstandingStage> stages,
-        String preliminaryAssessment) {
+        String preliminaryAssessment,
+        ProcessEffortEvidence effortEvidence) {
 }

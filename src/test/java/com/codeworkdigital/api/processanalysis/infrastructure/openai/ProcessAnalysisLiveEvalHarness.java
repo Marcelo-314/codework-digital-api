@@ -3,9 +3,11 @@ package com.codeworkdigital.api.processanalysis.infrastructure.openai;
 import com.codeworkdigital.api.processanalysis.application.AnalyzeProcessDescriptionCommand;
 import com.codeworkdigital.api.processanalysis.application.InvalidProcessAnalysisModelResponseException;
 import com.codeworkdigital.api.processanalysis.application.ProcessAnalysisApplicationService;
+import com.codeworkdigital.api.processanalysis.application.ProcessAnalysisResult;
 import com.codeworkdigital.api.processanalysis.application.ProcessAnalysisModelClient;
 import com.codeworkdigital.api.processanalysis.application.ProcessAnalysisUnavailableException;
 import com.codeworkdigital.api.processanalysis.application.ProcessAnalysisValidationException;
+import com.codeworkdigital.api.processanalysis.application.ProcessEffortEvidenceProjectionMapper;
 import com.codeworkdigital.api.processanalysis.application.ProcessUnderstanding;
 import com.codeworkdigital.api.processanalysis.application.ProcessUnderstandingStage;
 import com.codeworkdigital.api.processanalysis.application.TechnologyFitAssessmentEvaluator;
@@ -50,6 +52,7 @@ final class ProcessAnalysisLiveEvalHarness {
             ProcessAnalysisApplicationService applicationService = new ProcessAnalysisApplicationService(
                     validatorFactory.getValidator(),
                     modelClient,
+                    new ProcessEffortEvidenceProjectionMapper(),
                     new TechnologyFitAssessmentEvaluator());
 
             for (ProcessAnalysisEvalCase evalCase : cases) {
@@ -85,7 +88,8 @@ final class ProcessAnalysisLiveEvalHarness {
         long startedAt = System.nanoTime();
 
         try {
-            ProcessUnderstanding understanding = applicationService.analyze(command);
+            ProcessAnalysisResult result = applicationService.analyze(command);
+            ProcessUnderstanding understanding = result.understanding();
             return ProcessAnalysisLiveEvalExecution.success(
                     evalCase.id(),
                     evalCase.locale().name(),

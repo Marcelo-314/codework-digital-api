@@ -3,7 +3,10 @@ package com.codeworkdigital.api.processanalysis.infrastructure.openai;
 import com.codeworkdigital.api.processanalysis.application.AnalyzeProcessDescriptionCommand;
 import com.codeworkdigital.api.processanalysis.application.InvalidProcessAnalysisModelResponseException;
 import com.codeworkdigital.api.processanalysis.application.ProcessAnalysisModelClient;
+import com.codeworkdigital.api.processanalysis.application.ProcessAnalysisModelResult;
 import com.codeworkdigital.api.processanalysis.application.ProcessAnalysisUnavailableException;
+import com.codeworkdigital.api.processanalysis.application.ProcessEffortEvidence;
+import com.codeworkdigital.api.processanalysis.application.ProcessEffortEvidenceQuantity;
 import com.codeworkdigital.api.processanalysis.application.ProcessUnderstanding;
 import com.codeworkdigital.api.processanalysis.application.ProcessUnderstandingDraft;
 import com.codeworkdigital.api.processanalysis.application.ProcessUnderstandingStage;
@@ -49,7 +52,7 @@ class OpenAiProcessAnalysisModelClient implements ProcessAnalysisModelClient {
     }
 
     @Override
-    public ProcessUnderstanding analyze(AnalyzeProcessDescriptionCommand command) {
+    public ProcessAnalysisModelResult analyze(AnalyzeProcessDescriptionCommand command) {
         long startedAt = System.nanoTime();
         HttpRequest request = buildRequest(command);
 
@@ -68,14 +71,14 @@ class OpenAiProcessAnalysisModelClient implements ProcessAnalysisModelClient {
                 throw new ProcessAnalysisUnavailableException("provider_http_" + response.statusCode());
             }
 
-            ProcessUnderstanding understanding = parseUnderstanding(command.description(), response.body());
+            ProcessAnalysisModelResult result = parseResult(command.description(), response.body());
             LOGGER.info(
                     "Process analysis inference succeeded: model={} inputLength={} stageCount={} durationMs={}",
                     properties.model(),
                     command.description().length(),
-                    understanding.stages().size(),
+                    result.understanding().stages().size(),
                     durationMillis(startedAt));
-            return understanding;
+            return result;
         } catch (InvalidProcessAnalysisModelResponseException exception) {
             LOGGER.warn(
                     "Process analysis inference produced invalid structured output: model={} inputLength={} reason={} durationMs={}",
@@ -151,7 +154,7 @@ class OpenAiProcessAnalysisModelClient implements ProcessAnalysisModelClient {
         return root;
     }
 
-    private ProcessUnderstanding parseUnderstanding(String description, String providerBody) {
+    private ProcessAnalysisModelResult parseResult(String description, String providerBody) {
         JsonNode root;
         try {
             root = objectMapper.readTree(providerBody);
@@ -174,14 +177,19 @@ class OpenAiProcessAnalysisModelClient implements ProcessAnalysisModelClient {
 
         ProcessUnderstandingDraft sanitized = sanitize(draft);
         ProcessUnderstandingValidator.validate(sanitized);
-        return new ProcessUnderstanding(
+        if (sanitized.effortEvidence() == null) {
+            throw new InvalidProcessAnalysisModelResponseException("effort_evidence_missing");
+        }
+        return new ProcessAnalysisModelResult(
+                new ProcessUnderstanding(
                 description,
                 sanitized.analysisStatus(),
                 sanitized.observations(),
                 sanitized.inferences(),
                 sanitized.validationQuestions(),
                 sanitized.stages(),
-                sanitized.preliminaryAssessment());
+                sanitized.preliminaryAssessment()),
+                sanitized.effortEvidence());
     }
 
     private String extractOutputText(JsonNode root) {
@@ -227,7 +235,8 @@ class OpenAiProcessAnalysisModelClient implements ProcessAnalysisModelClient {
                 sanitizeList(draft.inferences()),
                 sanitizeList(draft.validationQuestions()),
                 sanitizeStages(draft.stages()),
-                sanitizeText(draft.preliminaryAssessment()));
+                sanitizeText(draft.preliminaryAssessment()),
+                sanitizeEffortEvidence(draft.effortEvidence()));
     }
 
     private List<String> sanitizeList(List<String> items) {
@@ -252,6 +261,38 @@ class OpenAiProcessAnalysisModelClient implements ProcessAnalysisModelClient {
                         stage.operationType(),
                         stage.inputNature()))
                 .toList();
+    }
+
+    private ProcessEffortEvidence sanitizeEffortEvidence(ProcessEffortEvidence effortEvidence) {
+        if (effortEvidence == null) {
+            return null;
+        }
+        if (effortEvidence.volumePerReportingPeriod() == null) {
+            throw new InvalidProcessAnalysisModelResponseException("volume_effort_evidence_missing");
+        }
+        if (effortEvidence.effortPerBusinessItem() == null) {
+            throw new InvalidProcessAnalysisModelResponseException("effort_effort_evidence_missing");
+        }
+        return new ProcessEffortEvidence(
+                sanitizeEffortQuantity(effortEvidence.volumePerReportingPeriod()),
+                sanitizeEffortQuantity(effortEvidence.effortPerBusinessItem()));
+    }
+
+    private ProcessEffortEvidenceQuantity sanitizeEffortQuantity(ProcessEffortEvidenceQuantity quantity) {
+        if (quantity == null) {
+            return null;
+        }
+        return new ProcessEffortEvidenceQuantity(
+                quantity.status(),
+                quantity.magnitude(),
+                quantity.minMagnitude(),
+                quantity.maxMagnitude(),
+                sanitizeText(quantity.businessItemRef()),
+                sanitizeText(quantity.businessItemLabel()),
+                quantity.reportingPeriod(),
+                quantity.effortDuration(),
+                sanitizeText(quantity.evidenceText()),
+                sanitizeText(quantity.note()));
     }
 
     private String sanitizeText(String value) {

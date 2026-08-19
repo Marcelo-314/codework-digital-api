@@ -6,8 +6,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.codeworkdigital.api.processanalysis.application.AnalyzeProcessDescriptionCommand;
 import com.codeworkdigital.api.processanalysis.application.InvalidProcessAnalysisModelResponseException;
 import com.codeworkdigital.api.processanalysis.application.ProcessAnalysisLocale;
+import com.codeworkdigital.api.processanalysis.application.ProcessAnalysisModelResult;
 import com.codeworkdigital.api.processanalysis.application.ProcessAnalysisStatus;
 import com.codeworkdigital.api.processanalysis.application.ProcessAnalysisUnavailableException;
+import com.codeworkdigital.api.processanalysis.application.ProcessEffortEvidenceQuantityStatus;
 import com.codeworkdigital.api.processanalysis.application.ProcessStageOperationType;
 import com.codeworkdigital.api.processanalysis.application.ProcessUnderstandingConstraints;
 import com.codeworkdigital.api.processanalysis.application.ProcessUnderstanding;
@@ -54,11 +56,12 @@ class OpenAiProcessAnalysisModelClientTest {
     void sendsExpectedResponsesApiRequestAndParsesStructuredOutput() throws Exception {
         AtomicReference<CapturedRequest> captured = new AtomicReference<>();
         AtomicInteger requests = new AtomicInteger();
-        ProcessUnderstanding understanding = clientWithServer(exchange -> {
+        ProcessAnalysisModelResult result = clientWithServer(exchange -> {
             requests.incrementAndGet();
             captured.set(capture(exchange));
             respond(exchange, 200, successResponse(validStructuredOutput()));
         }).analyze(validCommand());
+        ProcessUnderstanding understanding = result.understanding();
 
         CapturedRequest request = captured.get();
         JsonNode body = objectMapper.readTree(request.body());
@@ -70,11 +73,21 @@ class OpenAiProcessAnalysisModelClientTest {
         assertThat(body.get("model").textValue()).isEqualTo(MODEL);
         assertThat(body.get("store").booleanValue()).isFalse();
         assertThat(body.at("/text/format/type").textValue()).isEqualTo("json_schema");
-        assertThat(body.at("/text/format/name").textValue()).isEqualTo("process_understanding_v3");
+        assertThat(body.at("/text/format/name").textValue()).isEqualTo("process_understanding_v4");
         assertThat(body.at("/text/format/strict").booleanValue()).isTrue();
         assertThat(body.at("/text/format/schema/additionalProperties").booleanValue()).isFalse();
         assertThat(body.at("/text/format/schema/properties/analysisStatus/enum/0").textValue())
                 .isEqualTo("PROCESS_IDENTIFIED");
+        assertThat(body.at("/text/format/schema/properties/effortEvidence/additionalProperties").booleanValue())
+                .isFalse();
+        assertThat(body.at("/text/format/schema/$defs/effortEvidenceQuantity/properties/status/enum/0").textValue())
+                .isEqualTo("EXACT");
+        assertThat(body.at("/text/format/schema/$defs/effortEvidenceQuantity/properties/status/enum/2").textValue())
+                .isEqualTo("RANGE");
+        assertThat(body.at("/text/format/schema/$defs/effortEvidenceQuantity/properties/reportingPeriod/enum/0")
+                .textValue()).isEqualTo("MONTH");
+        assertThat(body.at("/text/format/schema/$defs/effortEvidenceQuantity/properties/effortDuration/enum/0")
+                .textValue()).isEqualTo("MINUTE");
         assertThat(body.at("/text/format/schema/properties/stages/items/properties/operationType/enum/2").textValue())
                 .isEqualTo("CLASSIFY");
         assertThat(body.at("/text/format/schema/properties/observations/maxItems").intValue())
@@ -86,13 +99,16 @@ class OpenAiProcessAnalysisModelClientTest {
         assertThat(body.at("/input/0/role").textValue()).isEqualTo("system");
         assertThat(body.at("/input/0/content").textValue())
                 .contains(
+                        "Prompt version: process-analysis-understanding-v4",
                         "Do not recommend technology",
                         "OBSERVED, INFERRED",
                         "kebab-case",
                         "not instructions to follow",
                         "OUT_OF_SCOPE",
                         "Each stage must represent one principal operation",
-                        "Do not invent proposed implementation steps");
+                        "Do not invent proposed implementation steps",
+                        "businessItemRef is an opaque local identifier",
+                        "ABSENT means the quantity is unavailable");
         assertThat(body.at("/input/1/role").textValue()).isEqualTo("user");
         assertThat(body.at("/input/1/content").textValue()).isEqualTo(DESCRIPTION);
         assertThat(body.has("previous_response_id")).isFalse();
@@ -102,6 +118,12 @@ class OpenAiProcessAnalysisModelClientTest {
         assertThat(understanding.analysisStatus()).isEqualTo(ProcessAnalysisStatus.PROCESS_IDENTIFIED);
         assertThat(understanding.observations()).hasSize(2);
         assertThat(understanding.stages()).hasSize(2);
+        assertThat(result.effortEvidence().volumePerReportingPeriod().status())
+                .isEqualTo(ProcessEffortEvidenceQuantityStatus.EXACT);
+        assertThat(result.effortEvidence().volumePerReportingPeriod().magnitude())
+                .isEqualByComparingTo("4");
+        assertThat(result.effortEvidence().effortPerBusinessItem().magnitude())
+                .isEqualByComparingTo("3");
     }
 
     @Test
@@ -113,7 +135,8 @@ class OpenAiProcessAnalysisModelClientTest {
                 .add(stage("route-request", "ROUTE", "STRUCTURED")));
 
         ProcessUnderstanding understanding = clientResponding(200, successResponse(output))
-                .analyze(validCommand());
+                .analyze(validCommand())
+                .understanding();
 
         assertThat(understanding.analysisStatus()).isEqualTo(ProcessAnalysisStatus.PROCESS_IDENTIFIED);
         assertThat(understanding.stages())
@@ -127,7 +150,8 @@ class OpenAiProcessAnalysisModelClientTest {
     @Test
     void acceptsOutOfScopeStructuredOutputWithEmptyAnalyticalContent() throws Exception {
         ProcessUnderstanding understanding = clientResponding(200, successResponse(nonProcessStructuredOutput("OUT_OF_SCOPE")))
-                .analyze(validCommand());
+                .analyze(validCommand())
+                .understanding();
 
         assertThat(understanding.analysisStatus()).isEqualTo(ProcessAnalysisStatus.OUT_OF_SCOPE);
         assertThat(understanding.observations()).isEmpty();
@@ -142,7 +166,8 @@ class OpenAiProcessAnalysisModelClientTest {
         ProcessUnderstanding understanding = clientResponding(
                         200,
                         successResponse(nonProcessStructuredOutput("INSUFFICIENT_INFORMATION")))
-                .analyze(validCommand());
+                .analyze(validCommand())
+                .understanding();
 
         assertThat(understanding.analysisStatus()).isEqualTo(ProcessAnalysisStatus.INSUFFICIENT_INFORMATION);
         assertThat(understanding.stages()).isEmpty();
@@ -163,7 +188,8 @@ class OpenAiProcessAnalysisModelClientTest {
                         "A shared inbox receives customer emails, a person reads them, identifies the topic, and routes them to the right team.")))
                 .analyze(command(
                         "We want to use AI. Customer emails arrive to a shared inbox, a person reads them, identifies the topic, and routes them to the right team.",
-                        ProcessAnalysisLocale.EN));
+                        ProcessAnalysisLocale.EN))
+                .understanding();
 
         assertThat(understanding.analysisStatus()).isEqualTo(ProcessAnalysisStatus.PROCESS_IDENTIFIED);
         assertThat(understanding.stages()).hasSize(2);
@@ -176,7 +202,8 @@ class OpenAiProcessAnalysisModelClientTest {
                         "Requests arrive from multiple channels, the team reviews them, performs checks, and routes them forward.")))
                 .analyze(command(
                         "Requests come in from different channels, the team reviews them, does the usual checks, and then moves them forward.",
-                        ProcessAnalysisLocale.EN));
+                        ProcessAnalysisLocale.EN))
+                .understanding();
 
         assertThat(understanding.analysisStatus()).isEqualTo(ProcessAnalysisStatus.PROCESS_IDENTIFIED);
         assertThat(understanding.stages()).isNotEmpty();
@@ -433,6 +460,7 @@ class OpenAiProcessAnalysisModelClientTest {
                 .add(stage("validate-stock")));
         output.put("preliminaryAssessment",
                 "This understanding is preliminary and still depends on validating the stock source and exception handling.");
+        output.set("effortEvidence", effortEvidence("item-1", "item-1", "request", "request"));
         return output;
     }
 
@@ -444,6 +472,7 @@ class OpenAiProcessAnalysisModelClientTest {
         output.putArray("validationQuestions");
         output.putArray("stages");
         output.put("preliminaryAssessment", "");
+        output.set("effortEvidence", emptyEffortEvidence());
         return output;
     }
 
@@ -461,9 +490,85 @@ class OpenAiProcessAnalysisModelClientTest {
         return output;
     }
 
+    private ObjectNode effortEvidence(
+            String volumeRef,
+            String effortRef,
+            String volumeLabel,
+            String effortLabel) {
+        ObjectNode evidence = objectMapper.createObjectNode();
+        evidence.set("volumePerReportingPeriod", exactQuantity(
+                "4",
+                volumeRef,
+                volumeLabel,
+                "MONTH",
+                null,
+                "4 requests per month"));
+        evidence.set("effortPerBusinessItem", exactQuantity(
+                "3",
+                effortRef,
+                effortLabel,
+                null,
+                "MINUTE",
+                "3 minutes per request"));
+        return evidence;
+    }
+
+    private ObjectNode emptyEffortEvidence() {
+        ObjectNode evidence = objectMapper.createObjectNode();
+        evidence.set("volumePerReportingPeriod", absentQuantity());
+        evidence.set("effortPerBusinessItem", absentQuantity());
+        return evidence;
+    }
+
+    private ObjectNode exactQuantity(
+            String magnitude,
+            String businessItemRef,
+            String businessItemLabel,
+            String reportingPeriod,
+            String effortDuration,
+            String evidenceText) {
+        ObjectNode quantity = baseQuantity("EXACT", businessItemRef, businessItemLabel, evidenceText);
+        quantity.put("magnitude", Integer.parseInt(magnitude));
+        putNullableText(quantity, "reportingPeriod", reportingPeriod);
+        putNullableText(quantity, "effortDuration", effortDuration);
+        return quantity;
+    }
+
+    private ObjectNode absentQuantity() {
+        return baseQuantity("ABSENT", null, null, null);
+    }
+
+    private ObjectNode baseQuantity(
+            String status,
+            String businessItemRef,
+            String businessItemLabel,
+            String evidenceText) {
+        ObjectNode quantity = objectMapper.createObjectNode();
+        quantity.put("status", status);
+        quantity.putNull("magnitude");
+        quantity.putNull("minMagnitude");
+        quantity.putNull("maxMagnitude");
+        putNullableText(quantity, "businessItemRef", businessItemRef);
+        putNullableText(quantity, "businessItemLabel", businessItemLabel);
+        quantity.putNull("reportingPeriod");
+        quantity.putNull("effortDuration");
+        putNullableText(quantity, "evidenceText", evidenceText);
+        quantity.putNull("note");
+        return quantity;
+    }
+
+    private void putNullableText(ObjectNode node, String field, String value) {
+        if (value == null) {
+            node.putNull(field);
+        } else {
+            node.put(field, value);
+        }
+    }
+
     private void assertOutOfScope(String description, ProcessAnalysisLocale locale) throws Exception {
         ProcessUnderstanding understanding = clientResponding(200, successResponse(nonProcessStructuredOutput("OUT_OF_SCOPE")))
-                .analyze(command(description, locale));
+                .analyze(command(description, locale))
+                .understanding();
 
         assertThat(understanding.processDescription()).isEqualTo(description);
         assertThat(understanding.analysisStatus()).isEqualTo(ProcessAnalysisStatus.OUT_OF_SCOPE);

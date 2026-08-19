@@ -59,8 +59,36 @@ class ProcessAnalysisStructuredOutputSchemaTest {
                 .isEqualTo(ProcessUnderstandingConstraints.MAX_STAGE_DESCRIPTION_LENGTH);
         assertThat(schema.at("/properties/preliminaryAssessment/maxLength").intValue())
                 .isEqualTo(ProcessUnderstandingConstraints.MAX_PRELIMINARY_ASSESSMENT_LENGTH);
+        assertThat(schema.at("/properties/effortEvidence/additionalProperties").booleanValue()).isFalse();
+        assertThat(textValues(schema.at("/properties/effortEvidence/required")))
+                .containsExactly("volumePerReportingPeriod", "effortPerBusinessItem");
+        assertThat(textValues(schema.at("/$defs/effortEvidenceQuantity/properties/status/enum")))
+                .containsExactly("EXACT", "APPROXIMATE", "RANGE", "ABSENT", "UNSUPPORTED_UNIT");
+        assertThat(textValues(schema.at("/$defs/effortEvidenceQuantity/properties/reportingPeriod/enum")))
+                .containsExactly("MONTH", null);
+        assertThat(textValues(schema.at("/$defs/effortEvidenceQuantity/properties/effortDuration/enum")))
+                .containsExactly("MINUTE", null);
+        assertThat(textValues(schema.at("/$defs/effortEvidenceQuantity/required")))
+                .containsExactly(
+                        "status",
+                        "magnitude",
+                        "minMagnitude",
+                        "maxMagnitude",
+                        "businessItemRef",
+                        "businessItemLabel",
+                        "reportingPeriod",
+                        "effortDuration",
+                        "evidenceText",
+                        "note");
         assertThat(textValues(schema.get("required")))
-                .contains("analysisStatus", "observations", "inferences", "validationQuestions", "stages", "preliminaryAssessment");
+                .contains(
+                        "analysisStatus",
+                        "observations",
+                        "inferences",
+                        "validationQuestions",
+                        "stages",
+                        "preliminaryAssessment",
+                        "effortEvidence");
     }
 
     private java.util.List<String> textValues(JsonNode node) {

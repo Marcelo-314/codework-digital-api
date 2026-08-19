@@ -7,7 +7,7 @@ import tools.jackson.databind.ObjectMapper;
 
 final class ProcessAnalysisStructuredOutputSchema {
 
-    static final String FORMAT_NAME = "process_understanding_v3";
+    static final String FORMAT_NAME = "process_understanding_v4";
 
     private static final String SCHEMA_JSON_TEMPLATE = """
             {
@@ -106,6 +106,22 @@ final class ProcessAnalysisStructuredOutputSchema {
                 "preliminaryAssessment": {
                   "type": "string",
                   "maxLength": %d
+                },
+                "effortEvidence": {
+                  "type": "object",
+                  "properties": {
+                    "volumePerReportingPeriod": {
+                      "$ref": "#/$defs/effortEvidenceQuantity"
+                    },
+                    "effortPerBusinessItem": {
+                      "$ref": "#/$defs/effortEvidenceQuantity"
+                    }
+                  },
+                  "required": [
+                    "volumePerReportingPeriod",
+                    "effortPerBusinessItem"
+                  ],
+                  "additionalProperties": false
                 }
               },
               "required": [
@@ -114,8 +130,72 @@ final class ProcessAnalysisStructuredOutputSchema {
                 "inferences",
                 "validationQuestions",
                 "stages",
-                "preliminaryAssessment"
+                "preliminaryAssessment",
+                "effortEvidence"
               ],
+              "$defs": {
+                "effortEvidenceQuantity": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "EXACT",
+                        "APPROXIMATE",
+                        "RANGE",
+                        "ABSENT",
+                        "UNSUPPORTED_UNIT"
+                      ]
+                    },
+                    "magnitude": {
+                      "type": ["number", "null"]
+                    },
+                    "minMagnitude": {
+                      "type": ["number", "null"]
+                    },
+                    "maxMagnitude": {
+                      "type": ["number", "null"]
+                    },
+                    "businessItemRef": {
+                      "type": ["string", "null"],
+                      "maxLength": 80
+                    },
+                    "businessItemLabel": {
+                      "type": ["string", "null"],
+                      "maxLength": 120
+                    },
+                    "reportingPeriod": {
+                      "type": ["string", "null"],
+                      "enum": ["MONTH", null]
+                    },
+                    "effortDuration": {
+                      "type": ["string", "null"],
+                      "enum": ["MINUTE", null]
+                    },
+                    "evidenceText": {
+                      "type": ["string", "null"],
+                      "maxLength": %d
+                    },
+                    "note": {
+                      "type": ["string", "null"],
+                      "maxLength": %d
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "magnitude",
+                    "minMagnitude",
+                    "maxMagnitude",
+                    "businessItemRef",
+                    "businessItemLabel",
+                    "reportingPeriod",
+                    "effortDuration",
+                    "evidenceText",
+                    "note"
+                  ],
+                  "additionalProperties": false
+                }
+              },
               "additionalProperties": false
             }
             """;
@@ -137,7 +217,9 @@ final class ProcessAnalysisStructuredOutputSchema {
                     ProcessUnderstandingConstraints.STAGE_ID_REGEX,
                     ProcessUnderstandingConstraints.MAX_TITLE_LENGTH,
                     ProcessUnderstandingConstraints.MAX_STAGE_DESCRIPTION_LENGTH,
-                    ProcessUnderstandingConstraints.MAX_PRELIMINARY_ASSESSMENT_LENGTH));
+                    ProcessUnderstandingConstraints.MAX_PRELIMINARY_ASSESSMENT_LENGTH,
+                    ProcessUnderstandingConstraints.MAX_LIST_ITEM_LENGTH,
+                    ProcessUnderstandingConstraints.MAX_LIST_ITEM_LENGTH));
         } catch (JacksonException exception) {
             throw new IllegalStateException("Could not parse process analysis output schema", exception);
         }
