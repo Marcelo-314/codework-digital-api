@@ -39,42 +39,42 @@ public class ProcessEffortEvidenceProjectionMapper {
         if (quantity == null
                 || quantity.status() != ProcessEffortEvidenceQuantityStatus.EXACT
                 || quantity.magnitude() == null
+                || quantity.magnitude().signum() < 0
+                || quantity.minMagnitude() != null
+                || quantity.maxMagnitude() != null
                 || isBlank(quantity.businessItemRef())
-                || quantity.reportingPeriod() != ProcessReportingPeriodUnit.MONTH) {
+                || quantity.reportingPeriod() != ProcessReportingPeriodUnit.MONTH
+                || quantity.effortDuration() != null) {
             return Optional.empty();
         }
 
-        try {
-            return Optional.of(new ProcessQuantityProjection(
-                    quantity.magnitude(),
-                    new ProcessBusinessItemPerReportingPeriodUnit(
-                            // Local to this single process-analysis result; never persisted or compared across analyses.
-                            new ProcessBusinessItemUnitId(quantity.businessItemRef()),
-                            ProcessReportingPeriodUnit.MONTH)));
-        } catch (RuntimeException exception) {
-            return Optional.empty();
-        }
+        return Optional.of(new ProcessQuantityProjection(
+                quantity.magnitude(),
+                new ProcessBusinessItemPerReportingPeriodUnit(
+                        // Local to this single process-analysis result; never persisted or compared across analyses.
+                        new ProcessBusinessItemUnitId(quantity.businessItemRef()),
+                        ProcessReportingPeriodUnit.MONTH)));
     }
 
     private Optional<ProcessQuantityProjection> mapEffort(ProcessEffortEvidenceQuantity quantity) {
         if (quantity == null
                 || quantity.status() != ProcessEffortEvidenceQuantityStatus.EXACT
                 || quantity.magnitude() == null
+                || quantity.magnitude().signum() < 0
+                || quantity.minMagnitude() != null
+                || quantity.maxMagnitude() != null
                 || isBlank(quantity.businessItemRef())
+                || quantity.reportingPeriod() != null
                 || quantity.effortDuration() != ProcessEffortDurationUnit.MINUTE) {
             return Optional.empty();
         }
 
-        try {
-            return Optional.of(new ProcessQuantityProjection(
-                    quantity.magnitude(),
-                    new ProcessEffortPerBusinessItemUnit(
-                            ProcessEffortDurationUnit.MINUTE,
-                            // Local to this single process-analysis result; never persisted or compared across analyses.
-                            new ProcessBusinessItemUnitId(quantity.businessItemRef()))));
-        } catch (RuntimeException exception) {
-            return Optional.empty();
-        }
+        return Optional.of(new ProcessQuantityProjection(
+                quantity.magnitude(),
+                new ProcessEffortPerBusinessItemUnit(
+                        ProcessEffortDurationUnit.MINUTE,
+                        // Local to this single process-analysis result; never persisted or compared across analyses.
+                        new ProcessBusinessItemUnitId(quantity.businessItemRef()))));
     }
 
     private boolean isComposable(

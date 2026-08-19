@@ -51,6 +51,134 @@ class ProcessEffortEvidenceProjectionMapperTest {
     }
 
     @Test
+    void zeroExactVolumeIsValid() {
+        ProcessAnalysisResult result = map(evidence(
+                volume(ProcessEffortEvidenceQuantityStatus.EXACT, "0", "item-1", "request"),
+                effort(ProcessEffortEvidenceQuantityStatus.ABSENT, null, null, null)));
+
+        assertThat(result.volumeProjection()).isPresent();
+        assertThat(result.volumeProjection().get().magnitude()).isEqualByComparingTo("0");
+    }
+
+    @Test
+    void zeroExactEffortIsValid() {
+        ProcessAnalysisResult result = map(evidence(
+                volume(ProcessEffortEvidenceQuantityStatus.ABSENT, null, null, null),
+                effort(ProcessEffortEvidenceQuantityStatus.EXACT, "0", "item-1", "request")));
+
+        assertThat(result.effortProjection()).isPresent();
+        assertThat(result.effortProjection().get().magnitude()).isEqualByComparingTo("0");
+    }
+
+    @Test
+    void negativeExactVolumeDoesNotPromote() {
+        ProcessAnalysisResult result = map(evidence(
+                volume(ProcessEffortEvidenceQuantityStatus.EXACT, "-1", "item-1", "request"),
+                effort(ProcessEffortEvidenceQuantityStatus.EXACT, "2", "item-1", "request")));
+
+        assertThat(result.volumeProjection()).isEmpty();
+        assertThat(result.effortProjection()).isPresent();
+        assertThat(result.composable()).isFalse();
+    }
+
+    @Test
+    void negativeExactEffortDoesNotPromote() {
+        ProcessAnalysisResult result = map(evidence(
+                volume(ProcessEffortEvidenceQuantityStatus.EXACT, "4000", "item-1", "request"),
+                effort(ProcessEffortEvidenceQuantityStatus.EXACT, "-1", "item-1", "request")));
+
+        assertThat(result.volumeProjection()).isPresent();
+        assertThat(result.effortProjection()).isEmpty();
+        assertThat(result.composable()).isFalse();
+    }
+
+    @Test
+    void exactVolumeWithMinMagnitudeDoesNotPromote() {
+        ProcessAnalysisResult result = map(evidence(
+                volumeWithRangeFields("4000", "3000", null),
+                effort(ProcessEffortEvidenceQuantityStatus.EXACT, "2", "item-1", "request")));
+
+        assertThat(result.volumeProjection()).isEmpty();
+        assertThat(result.effortProjection()).isPresent();
+        assertThat(result.composable()).isFalse();
+    }
+
+    @Test
+    void exactVolumeWithMaxMagnitudeDoesNotPromote() {
+        ProcessAnalysisResult result = map(evidence(
+                volumeWithRangeFields("4000", null, "5000"),
+                effort(ProcessEffortEvidenceQuantityStatus.EXACT, "2", "item-1", "request")));
+
+        assertThat(result.volumeProjection()).isEmpty();
+        assertThat(result.effortProjection()).isPresent();
+        assertThat(result.composable()).isFalse();
+    }
+
+    @Test
+    void exactEffortWithMinMagnitudeDoesNotPromote() {
+        ProcessAnalysisResult result = map(evidence(
+                volume(ProcessEffortEvidenceQuantityStatus.EXACT, "4000", "item-1", "request"),
+                effortWithRangeFields("2", "1", null)));
+
+        assertThat(result.volumeProjection()).isPresent();
+        assertThat(result.effortProjection()).isEmpty();
+        assertThat(result.composable()).isFalse();
+    }
+
+    @Test
+    void exactEffortWithMaxMagnitudeDoesNotPromote() {
+        ProcessAnalysisResult result = map(evidence(
+                volume(ProcessEffortEvidenceQuantityStatus.EXACT, "4000", "item-1", "request"),
+                effortWithRangeFields("2", null, "3")));
+
+        assertThat(result.volumeProjection()).isPresent();
+        assertThat(result.effortProjection()).isEmpty();
+        assertThat(result.composable()).isFalse();
+    }
+
+    @Test
+    void exactVolumeWithEffortDurationDoesNotPromote() {
+        ProcessAnalysisResult result = map(evidence(
+                new ProcessEffortEvidenceQuantity(
+                        ProcessEffortEvidenceQuantityStatus.EXACT,
+                        new BigDecimal("4000"),
+                        null,
+                        null,
+                        "item-1",
+                        "request",
+                        ProcessReportingPeriodUnit.MONTH,
+                        ProcessEffortDurationUnit.MINUTE,
+                        "4000 requests per month",
+                        null),
+                effort(ProcessEffortEvidenceQuantityStatus.EXACT, "2", "item-1", "request")));
+
+        assertThat(result.volumeProjection()).isEmpty();
+        assertThat(result.effortProjection()).isPresent();
+        assertThat(result.composable()).isFalse();
+    }
+
+    @Test
+    void exactEffortWithReportingPeriodDoesNotPromote() {
+        ProcessAnalysisResult result = map(evidence(
+                volume(ProcessEffortEvidenceQuantityStatus.EXACT, "4000", "item-1", "request"),
+                new ProcessEffortEvidenceQuantity(
+                        ProcessEffortEvidenceQuantityStatus.EXACT,
+                        new BigDecimal("2"),
+                        null,
+                        null,
+                        "item-1",
+                        "request",
+                        ProcessReportingPeriodUnit.MONTH,
+                        ProcessEffortDurationUnit.MINUTE,
+                        "2 minutes per request",
+                        null)));
+
+        assertThat(result.volumeProjection()).isPresent();
+        assertThat(result.effortProjection()).isEmpty();
+        assertThat(result.composable()).isFalse();
+    }
+
+    @Test
     void equalLocalRefsOnExactSupportedProjectionsAreComposable() {
         ProcessAnalysisResult result = map(evidence(
                 volume(ProcessEffortEvidenceQuantityStatus.EXACT, "4000", "item-1", "request"),
@@ -216,6 +344,40 @@ class ProcessEffortEvidenceProjectionMapperTest {
                 businessItemLabel,
                 reportingPeriod,
                 effortDuration,
+                null,
+                null);
+    }
+
+    private ProcessEffortEvidenceQuantity volumeWithRangeFields(
+            String magnitude,
+            String minMagnitude,
+            String maxMagnitude) {
+        return new ProcessEffortEvidenceQuantity(
+                ProcessEffortEvidenceQuantityStatus.EXACT,
+                new BigDecimal(magnitude),
+                minMagnitude == null ? null : new BigDecimal(minMagnitude),
+                maxMagnitude == null ? null : new BigDecimal(maxMagnitude),
+                "item-1",
+                "request",
+                ProcessReportingPeriodUnit.MONTH,
+                null,
+                null,
+                null);
+    }
+
+    private ProcessEffortEvidenceQuantity effortWithRangeFields(
+            String magnitude,
+            String minMagnitude,
+            String maxMagnitude) {
+        return new ProcessEffortEvidenceQuantity(
+                ProcessEffortEvidenceQuantityStatus.EXACT,
+                new BigDecimal(magnitude),
+                minMagnitude == null ? null : new BigDecimal(minMagnitude),
+                maxMagnitude == null ? null : new BigDecimal(maxMagnitude),
+                "item-1",
+                "request",
+                null,
+                ProcessEffortDurationUnit.MINUTE,
                 null,
                 null);
     }
