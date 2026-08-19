@@ -9,6 +9,7 @@ public record ProcessAnalysisResult(
         ProcessEffortEvidence effortEvidence,
         Optional<ProcessQuantityProjection> volumeProjection,
         Optional<ProcessQuantityProjection> effortProjection,
+        ProcessEffortSourceKnowledge sourceKnowledge,
         boolean composable) {
 
     public ProcessAnalysisResult {
@@ -16,5 +17,6 @@ public record ProcessAnalysisResult(
         effortEvidence = Objects.requireNonNull(effortEvidence, "effortEvidence");
         volumeProjection = Objects.requireNonNull(volumeProjection, "volumeProjection");
         effortProjection = Objects.requireNonNull(effortProjection, "effortProjection");
+        sourceKnowledge = Objects.requireNonNull(sourceKnowledge, "sourceKnowledge");
     }
 }

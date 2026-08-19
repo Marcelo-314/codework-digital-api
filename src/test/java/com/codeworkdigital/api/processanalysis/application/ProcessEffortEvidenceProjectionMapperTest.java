@@ -5,6 +5,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.codeworkdigital.api.processanalysis.domain.ProcessBusinessItemPerReportingPeriodUnit;
 import com.codeworkdigital.api.processanalysis.domain.ProcessEffortDurationUnit;
 import com.codeworkdigital.api.processanalysis.domain.ProcessEffortPerBusinessItemUnit;
+import com.codeworkdigital.api.processanalysis.domain.ProcessEvidenceArtifactKind;
+import com.codeworkdigital.api.processanalysis.domain.ProcessFactGrounding;
+import com.codeworkdigital.api.processanalysis.domain.ProcessKnownFact;
 import com.codeworkdigital.api.processanalysis.domain.ProcessReportingPeriodUnit;
 import java.math.BigDecimal;
 import java.util.List;
@@ -30,6 +33,18 @@ class ProcessEffortEvidenceProjectionMapperTest {
                 });
         assertThat(result.effortProjection()).isEmpty();
         assertThat(result.composable()).isFalse();
+        assertThat(result.sourceKnowledge().knownFacts())
+                .singleElement()
+                .satisfies(fact -> {
+                    assertThat(fact.id()).isEqualTo(ProcessEffortSourceKnowledgeMapper.VOLUME_FACT_ID);
+                    assertThat(fact.grounding()).isEqualTo(ProcessFactGrounding.SOURCE_STATED);
+                    assertThat(fact.scope().isProcessWide()).isTrue();
+                    assertThat(fact.premiseFactIds()).isEmpty();
+                    assertThat(fact.evidenceArtifactIds())
+                            .containsExactly(ProcessEffortSourceKnowledgeMapper.SOURCE_ARTIFACT_ID);
+                    assertThat(fact.computableProjection()).contains(result.volumeProjection().orElseThrow());
+                    assertThat(fact.statement()).isEqualTo("4000 business items per month are stated for this process");
+                });
     }
 
     @Test
@@ -48,6 +63,93 @@ class ProcessEffortEvidenceProjectionMapperTest {
                     assertThat(unit.businessItemId().value()).isEqualTo("item-1");
                 });
         assertThat(result.composable()).isFalse();
+        assertThat(result.sourceKnowledge().knownFacts())
+                .singleElement()
+                .satisfies(fact -> {
+                    assertThat(fact.id()).isEqualTo(ProcessEffortSourceKnowledgeMapper.EFFORT_FACT_ID);
+                    assertThat(fact.grounding()).isEqualTo(ProcessFactGrounding.SOURCE_STATED);
+                    assertThat(fact.scope().isProcessWide()).isTrue();
+                    assertThat(fact.premiseFactIds()).isEmpty();
+                    assertThat(fact.evidenceArtifactIds())
+                            .containsExactly(ProcessEffortSourceKnowledgeMapper.SOURCE_ARTIFACT_ID);
+                    assertThat(fact.computableProjection()).contains(result.effortProjection().orElseThrow());
+                    assertThat(fact.statement()).isEqualTo("2 minute per business item is stated for this process");
+                });
+    }
+
+    @Test
+    void eligibleVolumeAndEffortProduceTwoSourceStatedAtomicFactsOnOneSourceArtifact() {
+        ProcessAnalysisResult result = map(evidence(
+                volume(ProcessEffortEvidenceQuantityStatus.EXACT, "4000", "item-1", "request"),
+                effort(ProcessEffortEvidenceQuantityStatus.EXACT, "2", "item-1", "request")));
+
+        ProcessEffortSourceKnowledge sourceKnowledge = result.sourceKnowledge();
+
+        assertThat(sourceKnowledge.evidenceBase().artifacts())
+                .singleElement()
+                .satisfies(artifact -> {
+                    assertThat(artifact.id()).isEqualTo(ProcessEffortSourceKnowledgeMapper.SOURCE_ARTIFACT_ID);
+                    assertThat(artifact.kind()).isEqualTo(ProcessEvidenceArtifactKind.SOURCE_MATERIAL);
+                    assertThat(artifact.description())
+                            .isEqualTo("Process description submitted for this analysis");
+                });
+        assertThat(sourceKnowledge.knownFacts()).hasSize(2);
+        assertThat(sourceKnowledge.knownFacts())
+                .extracting(ProcessKnownFact::id)
+                .containsExactly(
+                        ProcessEffortSourceKnowledgeMapper.VOLUME_FACT_ID,
+                        ProcessEffortSourceKnowledgeMapper.EFFORT_FACT_ID);
+        assertThat(sourceKnowledge.knownFacts())
+                .allSatisfy(fact -> {
+                    assertThat(fact.grounding()).isEqualTo(ProcessFactGrounding.SOURCE_STATED);
+                    assertThat(fact.scope().isProcessWide()).isTrue();
+                    assertThat(fact.premiseFactIds()).isEmpty();
+                    assertThat(fact.evidenceArtifactIds())
+                            .containsExactly(ProcessEffortSourceKnowledgeMapper.SOURCE_ARTIFACT_ID);
+                });
+        assertThat(sourceKnowledge.knownFacts().get(0).computableProjection())
+                .contains(result.volumeProjection().orElseThrow());
+        assertThat(sourceKnowledge.knownFacts().get(1).computableProjection())
+                .contains(result.effortProjection().orElseThrow());
+    }
+
+    @Test
+    void sourceFactStatementsAreDeterministicAndRenderedFromAdmittedProjections() {
+        ProcessAnalysisResult first = map(evidence(
+                volume(ProcessEffortEvidenceQuantityStatus.EXACT, "4000.00", "item-1", "request"),
+                new ProcessEffortEvidenceQuantity(
+                        ProcessEffortEvidenceQuantityStatus.EXACT,
+                        new BigDecimal("2.00"),
+                        null,
+                        null,
+                        "item-1",
+                        "ticket",
+                        null,
+                        ProcessEffortDurationUnit.MINUTE,
+                        "a contradictory provider phrase that says 999 hours",
+                        null)));
+        ProcessAnalysisResult second = map(evidence(
+                volume(ProcessEffortEvidenceQuantityStatus.EXACT, "4000.00", "item-1", "changed label"),
+                new ProcessEffortEvidenceQuantity(
+                        ProcessEffortEvidenceQuantityStatus.EXACT,
+                        new BigDecimal("2.00"),
+                        null,
+                        null,
+                        "item-1",
+                        "changed label",
+                        null,
+                        ProcessEffortDurationUnit.MINUTE,
+                        "different raw evidence text with 123 days",
+                        null)));
+
+        assertThat(second.volumeProjection()).isEqualTo(first.volumeProjection());
+        assertThat(second.effortProjection()).isEqualTo(first.effortProjection());
+        assertThat(second.sourceKnowledge().knownFacts()).isEqualTo(first.sourceKnowledge().knownFacts());
+        assertThat(first.sourceKnowledge().knownFacts())
+                .extracting(ProcessKnownFact::statement)
+                .containsExactly(
+                        "4000 business items per month are stated for this process",
+                        "2 minute per business item is stated for this process");
     }
 
     @Test
@@ -58,6 +160,10 @@ class ProcessEffortEvidenceProjectionMapperTest {
 
         assertThat(result.volumeProjection()).isPresent();
         assertThat(result.volumeProjection().get().magnitude()).isEqualByComparingTo("0");
+        assertThat(result.sourceKnowledge().knownFacts())
+                .singleElement()
+                .satisfies(fact -> assertThat(fact.computableProjection())
+                        .contains(result.volumeProjection().orElseThrow()));
     }
 
     @Test
@@ -68,6 +174,10 @@ class ProcessEffortEvidenceProjectionMapperTest {
 
         assertThat(result.effortProjection()).isPresent();
         assertThat(result.effortProjection().get().magnitude()).isEqualByComparingTo("0");
+        assertThat(result.sourceKnowledge().knownFacts())
+                .singleElement()
+                .satisfies(fact -> assertThat(fact.computableProjection())
+                        .contains(result.effortProjection().orElseThrow()));
     }
 
     @Test
@@ -79,6 +189,9 @@ class ProcessEffortEvidenceProjectionMapperTest {
         assertThat(result.volumeProjection()).isEmpty();
         assertThat(result.effortProjection()).isPresent();
         assertThat(result.composable()).isFalse();
+        assertThat(result.sourceKnowledge().knownFacts())
+                .extracting(ProcessKnownFact::id)
+                .containsExactly(ProcessEffortSourceKnowledgeMapper.EFFORT_FACT_ID);
     }
 
     @Test
@@ -90,6 +203,9 @@ class ProcessEffortEvidenceProjectionMapperTest {
         assertThat(result.volumeProjection()).isPresent();
         assertThat(result.effortProjection()).isEmpty();
         assertThat(result.composable()).isFalse();
+        assertThat(result.sourceKnowledge().knownFacts())
+                .extracting(ProcessKnownFact::id)
+                .containsExactly(ProcessEffortSourceKnowledgeMapper.VOLUME_FACT_ID);
     }
 
     @Test
@@ -123,6 +239,9 @@ class ProcessEffortEvidenceProjectionMapperTest {
         assertThat(result.volumeProjection()).isPresent();
         assertThat(result.effortProjection()).isEmpty();
         assertThat(result.composable()).isFalse();
+        assertThat(result.sourceKnowledge().knownFacts())
+                .extracting(ProcessKnownFact::id)
+                .containsExactly(ProcessEffortSourceKnowledgeMapper.VOLUME_FACT_ID);
     }
 
     @Test
@@ -187,6 +306,7 @@ class ProcessEffortEvidenceProjectionMapperTest {
         assertThat(result.volumeProjection()).isPresent();
         assertThat(result.effortProjection()).isPresent();
         assertThat(result.composable()).isTrue();
+        assertThat(result.sourceKnowledge().knownFacts()).hasSize(2);
     }
 
     @Test
@@ -262,6 +382,7 @@ class ProcessEffortEvidenceProjectionMapperTest {
         assertThat(result.volumeProjection()).isEmpty();
         assertThat(result.effortProjection()).isEmpty();
         assertThat(result.composable()).isFalse();
+        assertThat(result.sourceKnowledge().knownFacts()).isEmpty();
     }
 
     @Test
@@ -273,6 +394,7 @@ class ProcessEffortEvidenceProjectionMapperTest {
         assertThat(result.volumeProjection()).isEmpty();
         assertThat(result.effortProjection()).isEmpty();
         assertThat(result.composable()).isFalse();
+        assertThat(result.sourceKnowledge().knownFacts()).isEmpty();
     }
 
     @Test

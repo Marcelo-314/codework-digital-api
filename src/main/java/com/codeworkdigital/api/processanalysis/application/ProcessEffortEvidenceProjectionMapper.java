@@ -19,6 +19,7 @@ public class ProcessEffortEvidenceProjectionMapper {
                     modelResult.effortEvidence(),
                     Optional.empty(),
                     Optional.empty(),
+                    ProcessEffortSourceKnowledgeMapper.empty(),
                     false);
         }
 
@@ -32,6 +33,7 @@ public class ProcessEffortEvidenceProjectionMapper {
                 modelResult.effortEvidence(),
                 volume,
                 effort,
+                ProcessEffortSourceKnowledgeMapper.map(volume, effort),
                 isComposable(volume, effort));
     }
 
