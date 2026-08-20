@@ -11,6 +11,7 @@ public record ProcessAnalysisResult(
         Optional<ProcessQuantityProjection> effortProjection,
         ProcessEffortSourceKnowledge sourceKnowledge,
         Optional<ProcessEffortDerivedResult> derivedResult,
+        ProcessEffortMaterialityAssessment materialityAssessment,
         boolean composable) {
 
     public ProcessAnalysisResult {
@@ -20,6 +21,7 @@ public record ProcessAnalysisResult(
         effortProjection = Objects.requireNonNull(effortProjection, "effortProjection");
         sourceKnowledge = Objects.requireNonNull(sourceKnowledge, "sourceKnowledge");
         derivedResult = Objects.requireNonNull(derivedResult, "derivedResult");
+        materialityAssessment = Objects.requireNonNull(materialityAssessment, "materialityAssessment");
     }
 
     public ProcessAnalysisResult withDerivedResult(Optional<ProcessEffortDerivedResult> derivedResult) {
@@ -30,6 +32,20 @@ public record ProcessAnalysisResult(
                 effortProjection,
                 sourceKnowledge,
                 derivedResult,
+                materialityAssessment,
+                composable);
+    }
+
+    public ProcessAnalysisResult withMaterialityAssessment(
+            ProcessEffortMaterialityAssessment materialityAssessment) {
+        return new ProcessAnalysisResult(
+                understanding,
+                effortEvidence,
+                volumeProjection,
+                effortProjection,
+                sourceKnowledge,
+                derivedResult,
+                materialityAssessment,
                 composable);
     }
 }

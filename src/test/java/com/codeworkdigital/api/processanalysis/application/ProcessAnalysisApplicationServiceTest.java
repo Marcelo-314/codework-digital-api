@@ -26,6 +26,7 @@ class ProcessAnalysisApplicationServiceTest {
                         modelClient,
                         new ProcessEffortEvidenceProjectionMapper(),
                         new ProcessEffortPerReportingPeriodMaterializer(),
+                        new ProcessEffortMaterialityAssessmentEvaluator(),
                         technologyFitAssessmentEvaluator);
         AnalyzeProcessDescriptionCommand command = new AnalyzeProcessDescriptionCommand(
                 "Receive the request, validate stock, and confirm delivery.",
@@ -43,6 +44,8 @@ class ProcessAnalysisApplicationServiceTest {
         assertThat(result.derivedResult()).isPresent();
         assertThat(result.derivedResult().orElseThrow().resultFact().statement())
                 .isEqualTo("Deterministically derived effort: 12 minute per month");
+        assertThat(result.materialityAssessment().status())
+                .isEqualTo(ProcessEffortMaterialityAssessmentStatus.NO_MATERIAL_JUSTIFICATION_IDENTIFIED);
         assertThat(technologyFitAssessmentEvaluator.invocations).isEqualTo(1);
         assertThat(understanding.technologyFitAssessments())
                 .singleElement()
@@ -63,6 +66,7 @@ class ProcessAnalysisApplicationServiceTest {
                         modelClient,
                         new ProcessEffortEvidenceProjectionMapper(),
                         new ProcessEffortPerReportingPeriodMaterializer(),
+                        new ProcessEffortMaterialityAssessmentEvaluator(),
                         technologyFitAssessmentEvaluator);
         AnalyzeProcessDescriptionCommand command = new AnalyzeProcessDescriptionCommand(
                 " ",
@@ -94,6 +98,7 @@ class ProcessAnalysisApplicationServiceTest {
                         modelClient,
                         new ProcessEffortEvidenceProjectionMapper(),
                         new ProcessEffortPerReportingPeriodMaterializer(),
+                        new ProcessEffortMaterialityAssessmentEvaluator(),
                         technologyFitAssessmentEvaluator);
 
         ProcessAnalysisResult result = service.analyze(new AnalyzeProcessDescriptionCommand(
@@ -111,6 +116,8 @@ class ProcessAnalysisApplicationServiceTest {
         assertThat(result.effortEvidence().effortPerBusinessItem().status())
                 .isEqualTo(ProcessEffortEvidenceQuantityStatus.ABSENT);
         assertThat(result.derivedResult()).isEmpty();
+        assertThat(result.materialityAssessment().status())
+                .isEqualTo(ProcessEffortMaterialityAssessmentStatus.NOT_ESTABLISHED);
         assertThat(technologyFitAssessmentEvaluator.invocations).isZero();
     }
 

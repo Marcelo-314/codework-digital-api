@@ -12,6 +12,7 @@ public class ProcessAnalysisApplicationService {
     private final ProcessAnalysisModelClient modelClient;
     private final ProcessEffortEvidenceProjectionMapper effortEvidenceProjectionMapper;
     private final ProcessEffortPerReportingPeriodMaterializer effortPerReportingPeriodMaterializer;
+    private final ProcessEffortMaterialityAssessmentEvaluator effortMaterialityAssessmentEvaluator;
     private final TechnologyFitAssessmentEvaluator technologyFitAssessmentEvaluator;
 
     public ProcessAnalysisApplicationService(
@@ -19,11 +20,13 @@ public class ProcessAnalysisApplicationService {
             ProcessAnalysisModelClient modelClient,
             ProcessEffortEvidenceProjectionMapper effortEvidenceProjectionMapper,
             ProcessEffortPerReportingPeriodMaterializer effortPerReportingPeriodMaterializer,
+            ProcessEffortMaterialityAssessmentEvaluator effortMaterialityAssessmentEvaluator,
             TechnologyFitAssessmentEvaluator technologyFitAssessmentEvaluator) {
         this.validator = validator;
         this.modelClient = modelClient;
         this.effortEvidenceProjectionMapper = effortEvidenceProjectionMapper;
         this.effortPerReportingPeriodMaterializer = effortPerReportingPeriodMaterializer;
+        this.effortMaterialityAssessmentEvaluator = effortMaterialityAssessmentEvaluator;
         this.technologyFitAssessmentEvaluator = technologyFitAssessmentEvaluator;
     }
 
@@ -45,7 +48,10 @@ public class ProcessAnalysisApplicationService {
 
     private ProcessAnalysisResult mapAndMaterialize(ProcessAnalysisModelResult modelResult) {
         ProcessAnalysisResult result = effortEvidenceProjectionMapper.map(modelResult);
-        return result.withDerivedResult(effortPerReportingPeriodMaterializer.materialize(result.sourceKnowledge()));
+        ProcessAnalysisResult materialized =
+                result.withDerivedResult(effortPerReportingPeriodMaterializer.materialize(result.sourceKnowledge()));
+        return materialized.withMaterialityAssessment(
+                effortMaterialityAssessmentEvaluator.assess(materialized.derivedResult()));
     }
 
     private void validate(AnalyzeProcessDescriptionCommand command) {

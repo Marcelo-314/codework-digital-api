@@ -13,6 +13,7 @@ import com.codeworkdigital.api.processanalysis.application.ProcessEffortEvidence
 import com.codeworkdigital.api.processanalysis.application.ProcessEffortEvidenceProjectionMapper;
 import com.codeworkdigital.api.processanalysis.application.ProcessEffortEvidenceQuantity;
 import com.codeworkdigital.api.processanalysis.application.ProcessEffortEvidenceQuantityStatus;
+import com.codeworkdigital.api.processanalysis.application.ProcessEffortMaterialityAssessmentEvaluator;
 import com.codeworkdigital.api.processanalysis.application.ProcessEffortPerReportingPeriodMaterializer;
 import com.codeworkdigital.api.processanalysis.application.ProcessStageInputNature;
 import com.codeworkdigital.api.processanalysis.application.ProcessStageOperationType;
@@ -112,6 +113,9 @@ class ProcessAnalysisApiIntegrationTest {
                 "effortProjection",
                 "sourceKnowledge",
                 "derivedResult",
+                "materialityAssessment",
+                "materialityThreshold",
+                "establishedOperationalBurden",
                 "derivedEffort",
                 "derivation",
                 "evidenceBase",
@@ -119,6 +123,11 @@ class ProcessAnalysisApiIntegrationTest {
                 "fact-volume-per-reporting-period",
                 "fact-effort-per-business-item",
                 "fact-effort-per-reporting-period",
+                "NOT_ESTABLISHED",
+                "NO_MATERIAL_JUSTIFICATION_IDENTIFIED",
+                "OPPORTUNITY_IDENTIFIED",
+                "2400",
+                "40 hours",
                 "source-process-description",
                 "computableProjection",
                 "evidenceArtifactIds",
@@ -133,6 +142,13 @@ class ProcessAnalysisApiIntegrationTest {
                 "prompt",
                 "provider",
                 "8000 minute/month",
+                "2400",
+                "40 hours",
+                "NOT_ESTABLISHED",
+                "NO_MATERIAL_JUSTIFICATION_IDENTIFIED",
+                "OPPORTUNITY_IDENTIFIED",
+                "materialityAssessment",
+                "materialityThreshold",
                 "12 minute per month",
                 "Deterministically derived effort");
     }
@@ -396,6 +412,7 @@ class ProcessAnalysisApiIntegrationTest {
             ContactRequestBodyLimitFilter.class,
             ProcessEffortEvidenceProjectionMapper.class,
             ProcessEffortPerReportingPeriodMaterializer.class,
+            ProcessEffortMaterialityAssessmentEvaluator.class,
             TestConfig.class
     })
     static class TestApplication {

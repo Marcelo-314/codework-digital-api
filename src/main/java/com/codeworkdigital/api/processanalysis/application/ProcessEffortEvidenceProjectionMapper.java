@@ -21,6 +21,8 @@ public class ProcessEffortEvidenceProjectionMapper {
                     Optional.empty(),
                     ProcessEffortSourceKnowledgeMapper.empty(),
                     Optional.empty(),
+                    ProcessEffortMaterialityAssessment.notEstablished(
+                            ProcessEffortMaterialityThreshold.P06_LAB_POLICY),
                     false);
         }
 
@@ -36,6 +38,8 @@ public class ProcessEffortEvidenceProjectionMapper {
                 effort,
                 ProcessEffortSourceKnowledgeMapper.map(modelResult.effortEvidence(), volume, effort),
                 Optional.empty(),
+                ProcessEffortMaterialityAssessment.notEstablished(
+                        ProcessEffortMaterialityThreshold.P06_LAB_POLICY),
                 isComposable(volume, effort));
     }
 

@@ -8,6 +8,7 @@ import com.codeworkdigital.api.processanalysis.application.ProcessAnalysisModelC
 import com.codeworkdigital.api.processanalysis.application.ProcessAnalysisUnavailableException;
 import com.codeworkdigital.api.processanalysis.application.ProcessAnalysisValidationException;
 import com.codeworkdigital.api.processanalysis.application.ProcessEffortEvidenceProjectionMapper;
+import com.codeworkdigital.api.processanalysis.application.ProcessEffortMaterialityAssessmentEvaluator;
 import com.codeworkdigital.api.processanalysis.application.ProcessEffortPerReportingPeriodMaterializer;
 import com.codeworkdigital.api.processanalysis.application.ProcessUnderstanding;
 import com.codeworkdigital.api.processanalysis.application.ProcessUnderstandingStage;
@@ -55,6 +56,7 @@ final class ProcessAnalysisLiveEvalHarness {
                     modelClient,
                     new ProcessEffortEvidenceProjectionMapper(),
                     new ProcessEffortPerReportingPeriodMaterializer(),
+                    new ProcessEffortMaterialityAssessmentEvaluator(),
                     new TechnologyFitAssessmentEvaluator());
 
             for (ProcessAnalysisEvalCase evalCase : cases) {
