@@ -33,12 +33,15 @@ final class ProcessEffortSourceKnowledgeMapper {
     }
 
     static ProcessEffortSourceKnowledge map(
+            ProcessEffortEvidence effortEvidence,
             Optional<ProcessQuantityProjection> volumeProjection,
             Optional<ProcessQuantityProjection> effortProjection) {
         ProcessEvidenceBase evidenceBase = new ProcessEvidenceBase(List.of(SOURCE_ARTIFACT));
         List<ProcessKnownFact> facts = new ArrayList<>();
-        volumeProjection.ifPresent(projection -> facts.add(volumeFact(projection)));
-        effortProjection.ifPresent(projection -> facts.add(effortFact(projection)));
+        volumeProjection.ifPresent(projection -> normalizedLabel(
+                effortEvidence.volumePerReportingPeriod()).ifPresent(label -> facts.add(volumeFact(projection, label))));
+        effortProjection.ifPresent(projection -> normalizedLabel(
+                effortEvidence.effortPerBusinessItem()).ifPresent(label -> facts.add(effortFact(projection, label))));
         return new ProcessEffortSourceKnowledge(evidenceBase, facts);
     }
 
@@ -46,10 +49,10 @@ final class ProcessEffortSourceKnowledgeMapper {
         return new ProcessEffortSourceKnowledge(new ProcessEvidenceBase(List.of()), List.of());
     }
 
-    private static ProcessKnownFact volumeFact(ProcessQuantityProjection projection) {
+    private static ProcessKnownFact volumeFact(ProcessQuantityProjection projection, String businessItemLabel) {
         return new ProcessKnownFact(
                 VOLUME_FACT_ID,
-                volumeStatement(projection),
+                volumeStatement(projection, businessItemLabel),
                 ProcessFactGrounding.SOURCE_STATED,
                 ProcessAnalysisScope.processWide(),
                 List.of(),
@@ -57,10 +60,10 @@ final class ProcessEffortSourceKnowledgeMapper {
                 Optional.of(projection));
     }
 
-    private static ProcessKnownFact effortFact(ProcessQuantityProjection projection) {
+    private static ProcessKnownFact effortFact(ProcessQuantityProjection projection, String businessItemLabel) {
         return new ProcessKnownFact(
                 EFFORT_FACT_ID,
-                effortStatement(projection),
+                effortStatement(projection, businessItemLabel),
                 ProcessFactGrounding.SOURCE_STATED,
                 ProcessAnalysisScope.processWide(),
                 List.of(),
@@ -68,16 +71,33 @@ final class ProcessEffortSourceKnowledgeMapper {
                 Optional.of(projection));
     }
 
-    private static String volumeStatement(ProcessQuantityProjection projection) {
+    private static String volumeStatement(ProcessQuantityProjection projection, String businessItemLabel) {
         ProcessBusinessItemPerReportingPeriodUnit unit =
                 (ProcessBusinessItemPerReportingPeriodUnit) projection.unit();
-        return "%s business items per %s are stated for this process"
-                .formatted(projection.magnitude().toPlainString(), unit.reportingPeriod().name().toLowerCase());
+        return "Stated volume for business item '%s': %s per %s"
+                .formatted(
+                        businessItemLabel,
+                        projection.magnitude().toPlainString(),
+                        unit.reportingPeriod().name().toLowerCase());
     }
 
-    private static String effortStatement(ProcessQuantityProjection projection) {
+    private static String effortStatement(ProcessQuantityProjection projection, String businessItemLabel) {
         ProcessEffortPerBusinessItemUnit unit = (ProcessEffortPerBusinessItemUnit) projection.unit();
-        return "%s %s per business item is stated for this process"
-                .formatted(projection.magnitude().toPlainString(), unit.effortDuration().name().toLowerCase());
+        return "Stated effort for business item '%s': %s %s per item"
+                .formatted(
+                        businessItemLabel,
+                        projection.magnitude().toPlainString(),
+                        unit.effortDuration().name().toLowerCase());
+    }
+
+    private static Optional<String> normalizedLabel(ProcessEffortEvidenceQuantity quantity) {
+        if (quantity == null || quantity.businessItemLabel() == null) {
+            return Optional.empty();
+        }
+        String label = quantity.businessItemLabel().strip();
+        if (label.isBlank()) {
+            return Optional.empty();
+        }
+        return Optional.of(label);
     }
 }

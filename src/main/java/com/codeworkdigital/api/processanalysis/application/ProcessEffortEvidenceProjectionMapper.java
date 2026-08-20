@@ -33,7 +33,7 @@ public class ProcessEffortEvidenceProjectionMapper {
                 modelResult.effortEvidence(),
                 volume,
                 effort,
-                ProcessEffortSourceKnowledgeMapper.map(volume, effort),
+                ProcessEffortSourceKnowledgeMapper.map(modelResult.effortEvidence(), volume, effort),
                 isComposable(volume, effort));
     }
 
