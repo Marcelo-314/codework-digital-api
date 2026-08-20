@@ -1,6 +1,8 @@
 package com.codeworkdigital.api.processanalysis.application;
 
+import com.codeworkdigital.api.processanalysis.domain.ProcessEvidenceGap;
 import com.codeworkdigital.api.processanalysis.domain.ProcessQuantityProjection;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -12,6 +14,7 @@ public record ProcessAnalysisResult(
         ProcessEffortSourceKnowledge sourceKnowledge,
         Optional<ProcessEffortDerivedResult> derivedResult,
         Optional<ProcessEffortMaterialityAssessment> materialityAssessment,
+        List<ProcessEvidenceGap> materialityEvidenceGaps,
         boolean composable) {
 
     public ProcessAnalysisResult {
@@ -22,6 +25,7 @@ public record ProcessAnalysisResult(
         sourceKnowledge = Objects.requireNonNull(sourceKnowledge, "sourceKnowledge");
         derivedResult = Objects.requireNonNull(derivedResult, "derivedResult");
         materialityAssessment = Objects.requireNonNull(materialityAssessment, "materialityAssessment");
+        materialityEvidenceGaps = List.copyOf(materialityEvidenceGaps);
     }
 
     public ProcessAnalysisResult withDerivedResult(Optional<ProcessEffortDerivedResult> derivedResult) {
@@ -33,6 +37,7 @@ public record ProcessAnalysisResult(
                 sourceKnowledge,
                 derivedResult,
                 materialityAssessment,
+                materialityEvidenceGaps,
                 composable);
     }
 
@@ -47,6 +52,21 @@ public record ProcessAnalysisResult(
                 sourceKnowledge,
                 derivedResult,
                 Optional.of(materialityAssessment),
+                materialityEvidenceGaps,
+                composable);
+    }
+
+    public ProcessAnalysisResult withMaterialityEvidenceGaps(
+            List<ProcessEvidenceGap> materialityEvidenceGaps) {
+        return new ProcessAnalysisResult(
+                understanding,
+                effortEvidence,
+                volumeProjection,
+                effortProjection,
+                sourceKnowledge,
+                derivedResult,
+                materialityAssessment,
+                materialityEvidenceGaps,
                 composable);
     }
 }

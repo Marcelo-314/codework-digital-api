@@ -27,6 +27,7 @@ class ProcessAnalysisApplicationServiceTest {
                         new ProcessEffortEvidenceProjectionMapper(),
                         new ProcessEffortPerReportingPeriodMaterializer(),
                         new ProcessEffortMaterialityAssessmentEvaluator(),
+                        new ProcessEffortMaterialityEvidenceGapIdentifier(),
                         technologyFitAssessmentEvaluator);
         AnalyzeProcessDescriptionCommand command = new AnalyzeProcessDescriptionCommand(
                 "Receive the request, validate stock, and confirm delivery.",
@@ -47,6 +48,7 @@ class ProcessAnalysisApplicationServiceTest {
         assertThat(result.materialityAssessment()).isPresent();
         assertThat(result.materialityAssessment().orElseThrow().status())
                 .isEqualTo(ProcessEffortMaterialityAssessmentStatus.NO_MATERIAL_JUSTIFICATION_IDENTIFIED);
+        assertThat(result.materialityEvidenceGaps()).isEmpty();
         assertThat(technologyFitAssessmentEvaluator.invocations).isEqualTo(1);
         assertThat(understanding.technologyFitAssessments())
                 .singleElement()
@@ -54,6 +56,47 @@ class ProcessAnalysisApplicationServiceTest {
                     assertThat(assessment.sourceStageId()).isEqualTo("receive-request");
                     assertThat(assessment.approach()).isEqualTo(TechnologyFitApproach.TO_VALIDATE);
                 });
+    }
+
+    @Test
+    void finalProcessResultCarriesMaterialityEvidenceGapsAfterAssessment() {
+        RecordingProcessAnalysisModelClient modelClient = new RecordingProcessAnalysisModelClient();
+        modelClient.response = new ProcessAnalysisModelResult(new ProcessUnderstanding(
+                "Receive the request, validate stock, and confirm delivery.",
+                List.of("The process starts with a request."),
+                List.of("A manual review may happen before confirmation."),
+                List.of(),
+                List.of(new ProcessUnderstandingStage(
+                        "receive-request",
+                        "Receive request",
+                        "A request enters the process.",
+                        ProcessStageProvenance.OBSERVED,
+                        ProcessStageOperationType.RECEIVE,
+                        ProcessStageInputNature.UNSTRUCTURED)),
+                "This understanding is preliminary."),
+                ProcessEffortEvidence.empty());
+        RecordingTechnologyFitAssessmentEvaluator technologyFitAssessmentEvaluator =
+                new RecordingTechnologyFitAssessmentEvaluator();
+        ProcessAnalysisApplicationService service =
+                new ProcessAnalysisApplicationService(
+                        validator,
+                        modelClient,
+                        new ProcessEffortEvidenceProjectionMapper(),
+                        new ProcessEffortPerReportingPeriodMaterializer(),
+                        new ProcessEffortMaterialityAssessmentEvaluator(),
+                        new ProcessEffortMaterialityEvidenceGapIdentifier(),
+                        technologyFitAssessmentEvaluator);
+
+        ProcessAnalysisResult result = service.analyze(new AnalyzeProcessDescriptionCommand(
+                "Receive the request, validate stock, and confirm delivery.",
+                ProcessAnalysisLocale.EN));
+
+        assertThat(result.materialityAssessment()).isPresent();
+        assertThat(result.materialityAssessment().orElseThrow().status())
+                .isEqualTo(ProcessEffortMaterialityAssessmentStatus.NOT_ESTABLISHED);
+        assertThat(result.materialityEvidenceGaps()).hasSize(2);
+        assertThat(modelClient.invocations).isEqualTo(1);
+        assertThat(technologyFitAssessmentEvaluator.invocations).isEqualTo(1);
     }
 
     @Test
@@ -68,6 +111,7 @@ class ProcessAnalysisApplicationServiceTest {
                         new ProcessEffortEvidenceProjectionMapper(),
                         new ProcessEffortPerReportingPeriodMaterializer(),
                         new ProcessEffortMaterialityAssessmentEvaluator(),
+                        new ProcessEffortMaterialityEvidenceGapIdentifier(),
                         technologyFitAssessmentEvaluator);
         AnalyzeProcessDescriptionCommand command = new AnalyzeProcessDescriptionCommand(
                 " ",
@@ -100,6 +144,7 @@ class ProcessAnalysisApplicationServiceTest {
                         new ProcessEffortEvidenceProjectionMapper(),
                         new ProcessEffortPerReportingPeriodMaterializer(),
                         new ProcessEffortMaterialityAssessmentEvaluator(),
+                        new ProcessEffortMaterialityEvidenceGapIdentifier(),
                         technologyFitAssessmentEvaluator);
 
         ProcessAnalysisResult result = service.analyze(new AnalyzeProcessDescriptionCommand(
@@ -120,6 +165,7 @@ class ProcessAnalysisApplicationServiceTest {
         assertThat(result.materialityAssessment()).isPresent();
         assertThat(result.materialityAssessment().orElseThrow().status())
                 .isEqualTo(ProcessEffortMaterialityAssessmentStatus.NOT_ESTABLISHED);
+        assertThat(result.materialityEvidenceGaps()).isEmpty();
         assertThat(technologyFitAssessmentEvaluator.invocations).isZero();
     }
 

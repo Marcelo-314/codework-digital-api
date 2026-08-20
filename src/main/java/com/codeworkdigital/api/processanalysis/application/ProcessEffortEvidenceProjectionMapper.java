@@ -6,6 +6,7 @@ import com.codeworkdigital.api.processanalysis.domain.ProcessEffortDurationUnit;
 import com.codeworkdigital.api.processanalysis.domain.ProcessEffortPerBusinessItemUnit;
 import com.codeworkdigital.api.processanalysis.domain.ProcessQuantityProjection;
 import com.codeworkdigital.api.processanalysis.domain.ProcessReportingPeriodUnit;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.stereotype.Component;
 
@@ -22,6 +23,7 @@ public class ProcessEffortEvidenceProjectionMapper {
                     ProcessEffortSourceKnowledgeMapper.empty(),
                     Optional.empty(),
                     Optional.empty(),
+                    List.of(),
                     false);
         }
 
@@ -38,6 +40,7 @@ public class ProcessEffortEvidenceProjectionMapper {
                 ProcessEffortSourceKnowledgeMapper.map(modelResult.effortEvidence(), volume, effort),
                 Optional.empty(),
                 Optional.empty(),
+                List.of(),
                 isComposable(volume, effort));
     }
 

@@ -13,6 +13,7 @@ public class ProcessAnalysisApplicationService {
     private final ProcessEffortEvidenceProjectionMapper effortEvidenceProjectionMapper;
     private final ProcessEffortPerReportingPeriodMaterializer effortPerReportingPeriodMaterializer;
     private final ProcessEffortMaterialityAssessmentEvaluator effortMaterialityAssessmentEvaluator;
+    private final ProcessEffortMaterialityEvidenceGapIdentifier effortMaterialityEvidenceGapIdentifier;
     private final TechnologyFitAssessmentEvaluator technologyFitAssessmentEvaluator;
 
     public ProcessAnalysisApplicationService(
@@ -21,12 +22,14 @@ public class ProcessAnalysisApplicationService {
             ProcessEffortEvidenceProjectionMapper effortEvidenceProjectionMapper,
             ProcessEffortPerReportingPeriodMaterializer effortPerReportingPeriodMaterializer,
             ProcessEffortMaterialityAssessmentEvaluator effortMaterialityAssessmentEvaluator,
+            ProcessEffortMaterialityEvidenceGapIdentifier effortMaterialityEvidenceGapIdentifier,
             TechnologyFitAssessmentEvaluator technologyFitAssessmentEvaluator) {
         this.validator = validator;
         this.modelClient = modelClient;
         this.effortEvidenceProjectionMapper = effortEvidenceProjectionMapper;
         this.effortPerReportingPeriodMaterializer = effortPerReportingPeriodMaterializer;
         this.effortMaterialityAssessmentEvaluator = effortMaterialityAssessmentEvaluator;
+        this.effortMaterialityEvidenceGapIdentifier = effortMaterialityEvidenceGapIdentifier;
         this.technologyFitAssessmentEvaluator = technologyFitAssessmentEvaluator;
     }
 
@@ -37,21 +40,28 @@ public class ProcessAnalysisApplicationService {
         if (!understanding.isProcessIdentified()) {
             return mapAndMaterialize(new ProcessAnalysisModelResult(
                     understanding,
-                    ProcessEffortEvidence.empty()));
+                    ProcessEffortEvidence.empty()), command.locale());
         }
         ProcessUnderstanding assessedUnderstanding =
                 understanding.withTechnologyFitAssessments(technologyFitAssessmentEvaluator.assess(understanding));
         return mapAndMaterialize(new ProcessAnalysisModelResult(
                 assessedUnderstanding,
-                modelResult.effortEvidence()));
+                modelResult.effortEvidence()), command.locale());
     }
 
-    private ProcessAnalysisResult mapAndMaterialize(ProcessAnalysisModelResult modelResult) {
+    private ProcessAnalysisResult mapAndMaterialize(
+            ProcessAnalysisModelResult modelResult,
+            ProcessAnalysisLocale locale) {
         ProcessAnalysisResult result = effortEvidenceProjectionMapper.map(modelResult);
         ProcessAnalysisResult materialized =
                 result.withDerivedResult(effortPerReportingPeriodMaterializer.materialize(result.sourceKnowledge()));
-        return materialized.withMaterialityAssessment(
+        ProcessAnalysisResult assessed = materialized.withMaterialityAssessment(
                 effortMaterialityAssessmentEvaluator.assess(materialized.derivedResult()));
+        return assessed.withMaterialityEvidenceGaps(effortMaterialityEvidenceGapIdentifier.identify(
+                assessed.understanding(),
+                assessed.effortEvidence(),
+                assessed.materialityAssessment().orElseThrow(),
+                locale));
     }
 
     private void validate(AnalyzeProcessDescriptionCommand command) {

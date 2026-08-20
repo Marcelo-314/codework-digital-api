@@ -91,6 +91,7 @@ class ProcessEffortEvidenceProjectionMapperTest {
         ProcessEffortSourceKnowledge sourceKnowledge = result.sourceKnowledge();
 
         assertThat(result.materialityAssessment()).isEmpty();
+        assertThat(result.materialityEvidenceGaps()).isEmpty();
         assertThat(sourceKnowledge.evidenceBase().artifacts())
                 .singleElement()
                 .satisfies(artifact -> {
@@ -465,6 +466,7 @@ class ProcessEffortEvidenceProjectionMapperTest {
         assertThat(result.volumeProjection()).isEmpty();
         assertThat(result.effortProjection()).isEmpty();
         assertThat(result.materialityAssessment()).isEmpty();
+        assertThat(result.materialityEvidenceGaps()).isEmpty();
         assertThat(result.composable()).isFalse();
     }
 

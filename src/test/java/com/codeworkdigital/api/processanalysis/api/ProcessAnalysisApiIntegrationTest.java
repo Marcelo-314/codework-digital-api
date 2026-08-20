@@ -14,6 +14,7 @@ import com.codeworkdigital.api.processanalysis.application.ProcessEffortEvidence
 import com.codeworkdigital.api.processanalysis.application.ProcessEffortEvidenceQuantity;
 import com.codeworkdigital.api.processanalysis.application.ProcessEffortEvidenceQuantityStatus;
 import com.codeworkdigital.api.processanalysis.application.ProcessEffortMaterialityAssessmentEvaluator;
+import com.codeworkdigital.api.processanalysis.application.ProcessEffortMaterialityEvidenceGapIdentifier;
 import com.codeworkdigital.api.processanalysis.application.ProcessEffortPerReportingPeriodMaterializer;
 import com.codeworkdigital.api.processanalysis.application.ProcessStageInputNature;
 import com.codeworkdigital.api.processanalysis.application.ProcessStageOperationType;
@@ -115,6 +116,11 @@ class ProcessAnalysisApiIntegrationTest {
                 "derivedResult",
                 "materialityAssessment",
                 "materialityThreshold",
+                "materialityEvidenceGaps",
+                "ProcessEvidenceGap",
+                "clarification question",
+                "decisionAffected",
+                "SELF_REPORTED",
                 "establishedOperationalBurden",
                 "derivedEffort",
                 "derivation",
@@ -149,6 +155,9 @@ class ProcessAnalysisApiIntegrationTest {
                 "OPPORTUNITY_IDENTIFIED",
                 "materialityAssessment",
                 "materialityThreshold",
+                "materialityEvidenceGaps",
+                "decisionAffected",
+                "SELF_REPORTED",
                 "12 minute per month",
                 "Deterministically derived effort");
     }
@@ -413,6 +422,7 @@ class ProcessAnalysisApiIntegrationTest {
             ProcessEffortEvidenceProjectionMapper.class,
             ProcessEffortPerReportingPeriodMaterializer.class,
             ProcessEffortMaterialityAssessmentEvaluator.class,
+            ProcessEffortMaterialityEvidenceGapIdentifier.class,
             TestConfig.class
     })
     static class TestApplication {
