@@ -95,6 +95,10 @@ class ProcessAnalysisApplicationServiceTest {
         assertThat(result.materialityAssessment().orElseThrow().status())
                 .isEqualTo(ProcessEffortMaterialityAssessmentStatus.NOT_ESTABLISHED);
         assertThat(result.materialityEvidenceGaps()).hasSize(2);
+        assertThat(result.materialityEvidenceGaps()).extracting(ProcessEffortMaterialityEvidenceGap::kind)
+                .containsExactly(
+                        ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD,
+                        ProcessEffortMaterialityEvidenceGapKind.EFFORT_PER_BUSINESS_ITEM);
         assertThat(modelClient.invocations).isEqualTo(1);
         assertThat(technologyFitAssessmentEvaluator.invocations).isEqualTo(1);
     }

@@ -21,13 +21,16 @@ class ProcessEffortMaterialityEvidenceGapIdentifierTest {
 
     @Test
     void absentVolumeOnlyProducesOneVolumeGap() {
-        List<ProcessEvidenceGap> gaps = identify(
+        List<ProcessEffortMaterialityEvidenceGap> gaps = identify(
                 processIdentified(),
                 evidence(absent("volume-item", "ticket"), exactEffort("2", "effort-item", "ticket")),
                 notEstablished(),
                 ProcessAnalysisLocale.EN);
 
-        assertThat(gaps).singleElement().satisfies(gap -> {
+        assertThat(gaps).singleElement().satisfies(typedGap -> {
+            assertThat(typedGap.kind())
+                    .isEqualTo(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD);
+            ProcessEvidenceGap gap = typedGap.evidenceGap();
             assertThat(gap.question())
                     .isEqualTo("What monthly quantity do you use as the reference volume for this process?");
             assertThat(gap.source()).isEqualTo(ProcessEvidenceSource.SELF_REPORTED);
@@ -37,26 +40,34 @@ class ProcessEffortMaterialityEvidenceGapIdentifierTest {
 
     @Test
     void absentEffortOnlyProducesOneEffortGap() {
-        List<ProcessEvidenceGap> gaps = identify(
+        List<ProcessEffortMaterialityEvidenceGap> gaps = identify(
                 processIdentified(),
                 evidence(exactVolume("4000", "volume-item", "ticket"), absent("effort-item", "ticket")),
                 notEstablished(),
                 ProcessAnalysisLocale.EN);
 
-        assertThat(gaps).singleElement().satisfies(gap -> assertThat(gap.question())
-                .isEqualTo("How many minutes of effort per processed business item do you use as the reference value?"));
+        assertThat(gaps).singleElement().satisfies(typedGap -> {
+            assertThat(typedGap.kind())
+                    .isEqualTo(ProcessEffortMaterialityEvidenceGapKind.EFFORT_PER_BUSINESS_ITEM);
+            assertThat(typedGap.evidenceGap().question())
+                    .isEqualTo("How many minutes of effort per processed business item do you use as the reference value?");
+        });
     }
 
     @Test
     void bothAbsentProduceVolumeThenEffortGaps() {
-        List<ProcessEvidenceGap> gaps = identify(
+        List<ProcessEffortMaterialityEvidenceGap> gaps = identify(
                 processIdentified(),
                 evidence(absent("volume-item", "ticket"), absent("effort-item", "ticket")),
                 notEstablished(),
                 ProcessAnalysisLocale.EN);
 
         assertThat(gaps).hasSize(2);
-        assertThat(gaps).extracting(ProcessEvidenceGap::question)
+        assertThat(gaps).extracting(ProcessEffortMaterialityEvidenceGap::kind)
+                .containsExactly(
+                        ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD,
+                        ProcessEffortMaterialityEvidenceGapKind.EFFORT_PER_BUSINESS_ITEM);
+        assertThat(evidenceGaps(gaps)).extracting(ProcessEvidenceGap::question)
                 .containsExactly(
                         "What monthly quantity do you use as the reference volume for this process?",
                         "How many minutes of effort per processed business item do you use as the reference value?");
@@ -64,26 +75,28 @@ class ProcessEffortMaterialityEvidenceGapIdentifierTest {
 
     @Test
     void generatedGapsUseSelfReportedProcessWideScopeAndStableDecisionAffected() {
-        List<ProcessEvidenceGap> gaps = identify(
+        List<ProcessEffortMaterialityEvidenceGap> gaps = identify(
                 processIdentified(),
                 evidence(absent("volume-item", "ticket"), absent("effort-item", "ticket")),
                 notEstablished(),
                 ProcessAnalysisLocale.EN);
 
-        assertThat(gaps).allSatisfy(gap -> {
+        assertThat(gaps).allSatisfy(typedGap -> {
+            assertThat(typedGap.evidenceGap()).isNotNull();
+            ProcessEvidenceGap gap = typedGap.evidenceGap();
             assertThat(gap.source()).isEqualTo(ProcessEvidenceSource.SELF_REPORTED);
             assertThat(gap.scope()).isEqualTo(ProcessAnalysisScope.processWide());
             assertThat(gap.decisionAffected())
                     .isEqualTo(ProcessEffortMaterialityEvidenceGapIdentifier.DECISION_AFFECTED);
             assertThat(gap.decisionAffected()).doesNotContain("2400", "40 hours", "INTERVENTION_JUSTIFIED");
         });
-        assertThat(gaps).extracting(ProcessEvidenceGap::decisionAffected).containsOnly(
+        assertThat(evidenceGaps(gaps)).extracting(ProcessEvidenceGap::decisionAffected).containsOnly(
                 ProcessEffortMaterialityEvidenceGapIdentifier.DECISION_AFFECTED);
     }
 
     @Test
     void establishedMaterialityProducesNoGapsEvenWhenEvidenceIsAbsent() {
-        List<ProcessEvidenceGap> gaps = identify(
+        List<ProcessEffortMaterialityEvidenceGap> gaps = identify(
                 processIdentified(),
                 evidence(absent("volume-item", "ticket"), absent("effort-item", "ticket")),
                 establishedNoMaterialJustification(),
@@ -97,7 +110,7 @@ class ProcessEffortMaterialityEvidenceGapIdentifierTest {
         for (ProcessAnalysisStatus status : List.of(
                 ProcessAnalysisStatus.OUT_OF_SCOPE,
                 ProcessAnalysisStatus.INSUFFICIENT_INFORMATION)) {
-            List<ProcessEvidenceGap> gaps = identify(
+            List<ProcessEffortMaterialityEvidenceGap> gaps = identify(
                     understanding(status),
                     evidence(absent("volume-item", "ticket"), absent("effort-item", "ticket")),
                     notEstablished(),
@@ -113,7 +126,7 @@ class ProcessEffortMaterialityEvidenceGapIdentifierTest {
                 ProcessEffortEvidenceQuantityStatus.APPROXIMATE,
                 ProcessEffortEvidenceQuantityStatus.RANGE,
                 ProcessEffortEvidenceQuantityStatus.UNSUPPORTED_UNIT)) {
-            List<ProcessEvidenceGap> gaps = identify(
+            List<ProcessEffortMaterialityEvidenceGap> gaps = identify(
                     processIdentified(),
                     evidence(quantity(status, "4000", "volume-item", "ticket", ProcessReportingPeriodUnit.MONTH, null),
                             quantity(status, "2", "effort-item", "ticket", null, ProcessEffortDurationUnit.MINUTE)),
@@ -126,7 +139,7 @@ class ProcessEffortMaterialityEvidenceGapIdentifierTest {
 
     @Test
     void missingLabelAloneProducesNoGapInThisIncrement() {
-        List<ProcessEvidenceGap> gaps = identify(
+        List<ProcessEffortMaterialityEvidenceGap> gaps = identify(
                 processIdentified(),
                 evidence(exactVolume("4000", "volume-item", " "), exactEffort("2", "effort-item", " ")),
                 notEstablished(),
@@ -137,7 +150,7 @@ class ProcessEffortMaterialityEvidenceGapIdentifierTest {
 
     @Test
     void mismatchedBusinessItemRefsAloneProduceNoGapInThisIncrement() {
-        List<ProcessEvidenceGap> gaps = identify(
+        List<ProcessEffortMaterialityEvidenceGap> gaps = identify(
                 processIdentified(),
                 evidence(exactVolume("4000", "volume-item", "ticket"), exactEffort("2", "effort-item", "invoice")),
                 notEstablished(),
@@ -148,33 +161,79 @@ class ProcessEffortMaterialityEvidenceGapIdentifierTest {
 
     @Test
     void businessItemRefNeverAppearsInGeneratedQuestionText() {
-        List<ProcessEvidenceGap> gaps = identify(
+        List<ProcessEffortMaterialityEvidenceGap> gaps = identify(
                 processIdentified(),
                 evidence(absent("secret-volume-ref", "ticket"), absent("secret-effort-ref", "ticket")),
                 notEstablished(),
                 ProcessAnalysisLocale.EN);
 
-        assertThat(gaps).extracting(ProcessEvidenceGap::question)
+        assertThat(evidenceGaps(gaps)).extracting(ProcessEvidenceGap::question)
                 .allSatisfy(question -> assertThat(question)
                         .doesNotContain("secret-volume-ref", "secret-effort-ref"));
+        assertThat(gaps).extracting(ProcessEffortMaterialityEvidenceGap::kind)
+                .containsExactly(
+                        ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD,
+                        ProcessEffortMaterialityEvidenceGapKind.EFFORT_PER_BUSINESS_ITEM);
     }
 
     @Test
-    void nonblankBusinessItemLabelDoesNotAffectExistenceOrderingOrDecision() {
-        List<ProcessEvidenceGap> first = identify(
+    void nonblankBusinessItemLabelDoesNotAffectExistenceOrderingDecisionOrKind() {
+        List<ProcessEffortMaterialityEvidenceGap> first = identify(
                 processIdentified(),
                 evidence(absent("volume-item", "ticket"), absent("effort-item", "ticket")),
                 notEstablished(),
                 ProcessAnalysisLocale.EN);
-        List<ProcessEvidenceGap> second = identify(
+        List<ProcessEffortMaterialityEvidenceGap> second = identify(
                 processIdentified(),
                 evidence(absent("volume-item", "invoice"), absent("effort-item", "invoice")),
                 notEstablished(),
                 ProcessAnalysisLocale.EN);
 
         assertThat(second).hasSameSizeAs(first);
-        assertThat(second).extracting(ProcessEvidenceGap::decisionAffected)
-                .containsExactlyElementsOf(first.stream().map(ProcessEvidenceGap::decisionAffected).toList());
+        assertThat(second).extracting(ProcessEffortMaterialityEvidenceGap::kind)
+                .containsExactlyElementsOf(first.stream().map(ProcessEffortMaterialityEvidenceGap::kind).toList());
+        assertThat(evidenceGaps(second)).extracting(ProcessEvidenceGap::decisionAffected)
+                .containsExactlyElementsOf(evidenceGaps(first).stream().map(ProcessEvidenceGap::decisionAffected).toList());
+    }
+
+    @Test
+    void questionTextDoesNotDetermineGapKind() {
+        List<ProcessEffortMaterialityEvidenceGap> english = identify(
+                processIdentified(),
+                evidence(absent("volume-item", "ticket"), absent("effort-item", "ticket")),
+                notEstablished(),
+                ProcessAnalysisLocale.EN);
+        List<ProcessEffortMaterialityEvidenceGap> spanish = identify(
+                processIdentified(),
+                evidence(absent("volume-item", "ticket"), absent("effort-item", "ticket")),
+                notEstablished(),
+                ProcessAnalysisLocale.ES);
+
+        assertThat(evidenceGaps(spanish)).extracting(ProcessEvidenceGap::question)
+                .doesNotContain(evidenceGaps(english).stream().map(ProcessEvidenceGap::question).toArray(String[]::new));
+        assertThat(spanish).extracting(ProcessEffortMaterialityEvidenceGap::kind)
+                .containsExactlyElementsOf(english.stream().map(ProcessEffortMaterialityEvidenceGap::kind).toList());
+    }
+
+    @Test
+    void localeChangesQuestionRenderingButNotGapKind() {
+        List<ProcessEffortMaterialityEvidenceGap> english = identify(
+                processIdentified(),
+                evidence(absent("volume-item", "ticket"), absent("effort-item", "ticket")),
+                notEstablished(),
+                ProcessAnalysisLocale.EN);
+        List<ProcessEffortMaterialityEvidenceGap> italian = identify(
+                processIdentified(),
+                evidence(absent("volume-item", "ticket"), absent("effort-item", "ticket")),
+                notEstablished(),
+                ProcessAnalysisLocale.IT);
+
+        assertThat(evidenceGaps(italian)).extracting(ProcessEvidenceGap::question)
+                .containsExactly(
+                        "Quale quantita mensile usi come volume di riferimento per questo processo?",
+                        "Quanti minuti di lavoro per elemento di business processato usi come valore di riferimento?");
+        assertThat(italian).extracting(ProcessEffortMaterialityEvidenceGap::kind)
+                .containsExactlyElementsOf(english.stream().map(ProcessEffortMaterialityEvidenceGap::kind).toList());
     }
 
     @Test
@@ -204,16 +263,21 @@ class ProcessEffortMaterialityEvidenceGapIdentifierTest {
                 evidence(absent("volume-item", "ticket"), absent("effort-item", "ticket")),
                 notEstablished(),
                 locale).stream()
+                .map(ProcessEffortMaterialityEvidenceGap::evidenceGap)
                 .map(ProcessEvidenceGap::question)
                 .toList();
     }
 
-    private List<ProcessEvidenceGap> identify(
+    private List<ProcessEffortMaterialityEvidenceGap> identify(
             ProcessUnderstanding understanding,
             ProcessEffortEvidence evidence,
             ProcessEffortMaterialityAssessment assessment,
             ProcessAnalysisLocale locale) {
         return identifier.identify(understanding, evidence, assessment, locale);
+    }
+
+    private List<ProcessEvidenceGap> evidenceGaps(List<ProcessEffortMaterialityEvidenceGap> gaps) {
+        return gaps.stream().map(ProcessEffortMaterialityEvidenceGap::evidenceGap).toList();
     }
 
     private ProcessEffortMaterialityAssessment notEstablished() {

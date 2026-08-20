@@ -13,7 +13,7 @@ public class ProcessEffortMaterialityEvidenceGapIdentifier {
 
     static final String DECISION_AFFECTED = "P06 process effort materiality assessment";
 
-    public List<ProcessEvidenceGap> identify(
+    public List<ProcessEffortMaterialityEvidenceGap> identify(
             ProcessUnderstanding understanding,
             ProcessEffortEvidence effortEvidence,
             ProcessEffortMaterialityAssessment materialityAssessment,
@@ -28,22 +28,30 @@ public class ProcessEffortMaterialityEvidenceGapIdentifier {
             return List.of();
         }
 
-        List<ProcessEvidenceGap> gaps = new ArrayList<>();
+        List<ProcessEffortMaterialityEvidenceGap> gaps = new ArrayList<>();
         if (effortEvidence.volumePerReportingPeriod().status() == ProcessEffortEvidenceQuantityStatus.ABSENT) {
-            gaps.add(gap(question(QuestionKind.VOLUME, locale)));
+            gaps.add(gap(
+                    ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD,
+                    question(QuestionKind.VOLUME, locale)));
         }
         if (effortEvidence.effortPerBusinessItem().status() == ProcessEffortEvidenceQuantityStatus.ABSENT) {
-            gaps.add(gap(question(QuestionKind.EFFORT, locale)));
+            gaps.add(gap(
+                    ProcessEffortMaterialityEvidenceGapKind.EFFORT_PER_BUSINESS_ITEM,
+                    question(QuestionKind.EFFORT, locale)));
         }
         return List.copyOf(gaps);
     }
 
-    private static ProcessEvidenceGap gap(String question) {
-        return new ProcessEvidenceGap(
-                question,
-                ProcessEvidenceSource.SELF_REPORTED,
-                DECISION_AFFECTED,
-                ProcessAnalysisScope.processWide());
+    private static ProcessEffortMaterialityEvidenceGap gap(
+            ProcessEffortMaterialityEvidenceGapKind kind,
+            String question) {
+        return new ProcessEffortMaterialityEvidenceGap(
+                kind,
+                new ProcessEvidenceGap(
+                        question,
+                        ProcessEvidenceSource.SELF_REPORTED,
+                        DECISION_AFFECTED,
+                        ProcessAnalysisScope.processWide()));
     }
 
     private static String question(QuestionKind kind, ProcessAnalysisLocale locale) {

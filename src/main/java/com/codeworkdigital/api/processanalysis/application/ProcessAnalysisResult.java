@@ -1,6 +1,5 @@
 package com.codeworkdigital.api.processanalysis.application;
 
-import com.codeworkdigital.api.processanalysis.domain.ProcessEvidenceGap;
 import com.codeworkdigital.api.processanalysis.domain.ProcessQuantityProjection;
 import java.util.List;
 import java.util.Objects;
@@ -14,7 +13,7 @@ public record ProcessAnalysisResult(
         ProcessEffortSourceKnowledge sourceKnowledge,
         Optional<ProcessEffortDerivedResult> derivedResult,
         Optional<ProcessEffortMaterialityAssessment> materialityAssessment,
-        List<ProcessEvidenceGap> materialityEvidenceGaps,
+        List<ProcessEffortMaterialityEvidenceGap> materialityEvidenceGaps,
         boolean composable) {
 
     public ProcessAnalysisResult {
@@ -57,7 +56,7 @@ public record ProcessAnalysisResult(
     }
 
     public ProcessAnalysisResult withMaterialityEvidenceGaps(
-            List<ProcessEvidenceGap> materialityEvidenceGaps) {
+            List<ProcessEffortMaterialityEvidenceGap> materialityEvidenceGaps) {
         return new ProcessAnalysisResult(
                 understanding,
                 effortEvidence,
