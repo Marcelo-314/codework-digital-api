@@ -13,6 +13,7 @@ import com.codeworkdigital.api.processanalysis.application.ProcessEffortEvidence
 import com.codeworkdigital.api.processanalysis.application.ProcessEffortEvidenceProjectionMapper;
 import com.codeworkdigital.api.processanalysis.application.ProcessEffortEvidenceQuantity;
 import com.codeworkdigital.api.processanalysis.application.ProcessEffortEvidenceQuantityStatus;
+import com.codeworkdigital.api.processanalysis.application.ProcessEffortPerReportingPeriodMaterializer;
 import com.codeworkdigital.api.processanalysis.application.ProcessStageInputNature;
 import com.codeworkdigital.api.processanalysis.application.ProcessStageOperationType;
 import com.codeworkdigital.api.processanalysis.application.ProcessStageProvenance;
@@ -110,10 +111,14 @@ class ProcessAnalysisApiIntegrationTest {
                 "volumeProjection",
                 "effortProjection",
                 "sourceKnowledge",
+                "derivedResult",
+                "derivedEffort",
+                "derivation",
                 "evidenceBase",
                 "knownFacts",
                 "fact-volume-per-reporting-period",
                 "fact-effort-per-business-item",
+                "fact-effort-per-reporting-period",
                 "source-process-description",
                 "computableProjection",
                 "evidenceArtifactIds",
@@ -123,7 +128,13 @@ class ProcessAnalysisApiIntegrationTest {
         assertThat(processAnalysisModelClient.invocations).isEqualTo(1);
         assertThat(processAnalysisModelClient.lastCommand.description())
                 .isEqualTo("Recibimos pedidos por WhatsApp, verificamos stock y confirmamos entrega.");
-        assertThat(response.body()).doesNotContain("openai", "prompt", "provider");
+        assertThat(response.body()).doesNotContain(
+                "openai",
+                "prompt",
+                "provider",
+                "8000 minute/month",
+                "12 minute per month",
+                "Deterministically derived effort");
     }
 
     @Test
@@ -384,6 +395,7 @@ class ProcessAnalysisApiIntegrationTest {
             ApiExceptionHandler.class,
             ContactRequestBodyLimitFilter.class,
             ProcessEffortEvidenceProjectionMapper.class,
+            ProcessEffortPerReportingPeriodMaterializer.class,
             TestConfig.class
     })
     static class TestApplication {

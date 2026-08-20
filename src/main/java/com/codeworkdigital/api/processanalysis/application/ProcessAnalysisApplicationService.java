@@ -11,16 +11,19 @@ public class ProcessAnalysisApplicationService {
     private final Validator validator;
     private final ProcessAnalysisModelClient modelClient;
     private final ProcessEffortEvidenceProjectionMapper effortEvidenceProjectionMapper;
+    private final ProcessEffortPerReportingPeriodMaterializer effortPerReportingPeriodMaterializer;
     private final TechnologyFitAssessmentEvaluator technologyFitAssessmentEvaluator;
 
     public ProcessAnalysisApplicationService(
             Validator validator,
             ProcessAnalysisModelClient modelClient,
             ProcessEffortEvidenceProjectionMapper effortEvidenceProjectionMapper,
+            ProcessEffortPerReportingPeriodMaterializer effortPerReportingPeriodMaterializer,
             TechnologyFitAssessmentEvaluator technologyFitAssessmentEvaluator) {
         this.validator = validator;
         this.modelClient = modelClient;
         this.effortEvidenceProjectionMapper = effortEvidenceProjectionMapper;
+        this.effortPerReportingPeriodMaterializer = effortPerReportingPeriodMaterializer;
         this.technologyFitAssessmentEvaluator = technologyFitAssessmentEvaluator;
     }
 
@@ -29,15 +32,20 @@ public class ProcessAnalysisApplicationService {
         ProcessAnalysisModelResult modelResult = modelClient.analyze(command);
         ProcessUnderstanding understanding = modelResult.understanding();
         if (!understanding.isProcessIdentified()) {
-            return effortEvidenceProjectionMapper.map(new ProcessAnalysisModelResult(
+            return mapAndMaterialize(new ProcessAnalysisModelResult(
                     understanding,
                     ProcessEffortEvidence.empty()));
         }
         ProcessUnderstanding assessedUnderstanding =
                 understanding.withTechnologyFitAssessments(technologyFitAssessmentEvaluator.assess(understanding));
-        return effortEvidenceProjectionMapper.map(new ProcessAnalysisModelResult(
+        return mapAndMaterialize(new ProcessAnalysisModelResult(
                 assessedUnderstanding,
                 modelResult.effortEvidence()));
+    }
+
+    private ProcessAnalysisResult mapAndMaterialize(ProcessAnalysisModelResult modelResult) {
+        ProcessAnalysisResult result = effortEvidenceProjectionMapper.map(modelResult);
+        return result.withDerivedResult(effortPerReportingPeriodMaterializer.materialize(result.sourceKnowledge()));
     }
 
     private void validate(AnalyzeProcessDescriptionCommand command) {
