@@ -1,8 +1,10 @@
 package com.codeworkdigital.api.processanalysis.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.codeworkdigital.api.processanalysis.domain.ProcessAnalysisScope;
+import com.codeworkdigital.api.processanalysis.domain.ProcessBusinessItemPerReportingPeriodUnit;
 import com.codeworkdigital.api.processanalysis.domain.ProcessBusinessItemUnitId;
 import com.codeworkdigital.api.processanalysis.domain.ProcessEffortDurationUnit;
 import com.codeworkdigital.api.processanalysis.domain.ProcessEffortPerBusinessItemUnit;
@@ -94,6 +96,71 @@ class ProcessEffortMaterialityAssessmentEvaluatorTest {
     }
 
     @Test
+    void notEstablishedWithEmptyBurdenIsValid() {
+        ProcessEffortMaterialityAssessment assessment = ProcessEffortMaterialityAssessment.notEstablished(
+                ProcessEffortMaterialityThreshold.P06_LAB_POLICY);
+
+        assertThat(assessment.status()).isEqualTo(ProcessEffortMaterialityAssessmentStatus.NOT_ESTABLISHED);
+        assertThat(assessment.establishedOperationalBurden()).isEmpty();
+    }
+
+    @Test
+    void notEstablishedWithPresentBurdenIsRejected() {
+        assertThatThrownBy(() -> new ProcessEffortMaterialityAssessment(
+                ProcessEffortMaterialityAssessmentStatus.NOT_ESTABLISHED,
+                ProcessEffortMaterialityThreshold.P06_LAB_POLICY,
+                Optional.of(quantityProjection("8"))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("must not carry a burden");
+    }
+
+    @Test
+    void noMaterialJustificationWithMissingBurdenIsRejected() {
+        assertThatThrownBy(() -> new ProcessEffortMaterialityAssessment(
+                ProcessEffortMaterialityAssessmentStatus.NO_MATERIAL_JUSTIFICATION_IDENTIFIED,
+                ProcessEffortMaterialityThreshold.P06_LAB_POLICY,
+                Optional.empty()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("requires a burden");
+    }
+
+    @Test
+    void opportunityIdentifiedWithMissingBurdenIsRejected() {
+        assertThatThrownBy(() -> new ProcessEffortMaterialityAssessment(
+                ProcessEffortMaterialityAssessmentStatus.OPPORTUNITY_IDENTIFIED,
+                ProcessEffortMaterialityThreshold.P06_LAB_POLICY,
+                Optional.empty()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("requires a burden");
+    }
+
+    @Test
+    void establishedAssessmentWithExpectedMinutePerMonthBurdenIsValid() {
+        ProcessEffortMaterialityAssessment assessment = new ProcessEffortMaterialityAssessment(
+                ProcessEffortMaterialityAssessmentStatus.NO_MATERIAL_JUSTIFICATION_IDENTIFIED,
+                ProcessEffortMaterialityThreshold.P06_LAB_POLICY,
+                Optional.of(quantityProjection("8")));
+
+        assertThat(assessment.establishedOperationalBurden()).isPresent();
+    }
+
+    @Test
+    void establishedBurdenWithIncompatibleUnitIsRejected() {
+        ProcessQuantityProjection incompatibleBurden = new ProcessQuantityProjection(
+                new BigDecimal("8"),
+                new ProcessBusinessItemPerReportingPeriodUnit(
+                        new ProcessBusinessItemUnitId("item-1"),
+                        ProcessReportingPeriodUnit.MONTH));
+
+        assertThatThrownBy(() -> new ProcessEffortMaterialityAssessment(
+                ProcessEffortMaterialityAssessmentStatus.NO_MATERIAL_JUSTIFICATION_IDENTIFIED,
+                ProcessEffortMaterialityThreshold.P06_LAB_POLICY,
+                Optional.of(incompatibleBurden)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("unit must match");
+    }
+
+    @Test
     void evaluatorDoesNotRecalculateVolumeTimesEffortOrConsumeSourceOperands() {
         ProcessEffortDerivedResult derivedResult = derivedResultWithDerivationIds(
                 "8",
@@ -153,7 +220,7 @@ class ProcessEffortMaterialityAssessmentEvaluatorTest {
                         "NOT_ESTABLISHED",
                         "NO_MATERIAL_JUSTIFICATION_IDENTIFIED",
                         "OPPORTUNITY_IDENTIFIED")
-                .doesNotContain("INTERVENTION_JUSTIFIED");
+                .doesNotContain("NOT_ASSESSED", "PENDING", "INTERVENTION_JUSTIFIED");
     }
 
     @Test

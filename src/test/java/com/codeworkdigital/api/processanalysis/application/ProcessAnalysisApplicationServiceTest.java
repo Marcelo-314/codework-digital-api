@@ -44,7 +44,8 @@ class ProcessAnalysisApplicationServiceTest {
         assertThat(result.derivedResult()).isPresent();
         assertThat(result.derivedResult().orElseThrow().resultFact().statement())
                 .isEqualTo("Deterministically derived effort: 12 minute per month");
-        assertThat(result.materialityAssessment().status())
+        assertThat(result.materialityAssessment()).isPresent();
+        assertThat(result.materialityAssessment().orElseThrow().status())
                 .isEqualTo(ProcessEffortMaterialityAssessmentStatus.NO_MATERIAL_JUSTIFICATION_IDENTIFIED);
         assertThat(technologyFitAssessmentEvaluator.invocations).isEqualTo(1);
         assertThat(understanding.technologyFitAssessments())
@@ -116,7 +117,8 @@ class ProcessAnalysisApplicationServiceTest {
         assertThat(result.effortEvidence().effortPerBusinessItem().status())
                 .isEqualTo(ProcessEffortEvidenceQuantityStatus.ABSENT);
         assertThat(result.derivedResult()).isEmpty();
-        assertThat(result.materialityAssessment().status())
+        assertThat(result.materialityAssessment()).isPresent();
+        assertThat(result.materialityAssessment().orElseThrow().status())
                 .isEqualTo(ProcessEffortMaterialityAssessmentStatus.NOT_ESTABLISHED);
         assertThat(technologyFitAssessmentEvaluator.invocations).isZero();
     }
