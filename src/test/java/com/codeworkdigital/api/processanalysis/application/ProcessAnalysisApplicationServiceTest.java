@@ -74,7 +74,7 @@ class ProcessAnalysisApplicationServiceTest {
                         ProcessStageOperationType.RECEIVE,
                         ProcessStageInputNature.UNSTRUCTURED)),
                 "This understanding is preliminary."),
-                ProcessEffortEvidence.empty());
+                absentEvidence("item-1", "item-1", "request", "request"));
         RecordingTechnologyFitAssessmentEvaluator technologyFitAssessmentEvaluator =
                 new RecordingTechnologyFitAssessmentEvaluator();
         ProcessAnalysisApplicationService service =
@@ -241,6 +241,36 @@ class ProcessAnalysisApplicationServiceTest {
                         null,
                         ProcessEffortDurationUnit.MINUTE,
                         "3 minutes per request",
+                        null));
+    }
+
+    private static ProcessEffortEvidence absentEvidence(
+            String volumeRef,
+            String effortRef,
+            String volumeLabel,
+            String effortLabel) {
+        return new ProcessEffortEvidence(
+                new ProcessEffortEvidenceQuantity(
+                        ProcessEffortEvidenceQuantityStatus.ABSENT,
+                        null,
+                        null,
+                        null,
+                        volumeRef,
+                        volumeLabel,
+                        null,
+                        null,
+                        null,
+                        null),
+                new ProcessEffortEvidenceQuantity(
+                        ProcessEffortEvidenceQuantityStatus.ABSENT,
+                        null,
+                        null,
+                        null,
+                        effortRef,
+                        effortLabel,
+                        null,
+                        null,
+                        null,
                         null));
     }
 }

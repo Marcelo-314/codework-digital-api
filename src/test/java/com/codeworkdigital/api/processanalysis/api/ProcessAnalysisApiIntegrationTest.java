@@ -263,6 +263,49 @@ class ProcessAnalysisApiIntegrationTest {
     }
 
     @Test
+    void nonActionableAbsentEvidenceReturnsEmptyPublicClarificationQuestions() throws Exception {
+        for (FakeProcessAnalysisModelClient.Mode mode : List.of(
+                FakeProcessAnalysisModelClient.Mode.VOLUME_ABSENT_MISMATCHED_REF,
+                FakeProcessAnalysisModelClient.Mode.VOLUME_ABSENT_UNSUPPORTED_EFFORT,
+                FakeProcessAnalysisModelClient.Mode.BOTH_ABSENT_BLANK_REF,
+                FakeProcessAnalysisModelClient.Mode.VOLUME_ABSENT_MISSING_LABEL)) {
+            processAnalysisModelClient.mode = mode;
+
+            Map<String, Object> body = json(postWithLocale("EN"));
+
+            assertThat(body.get("clarificationQuestions")).isEqualTo(List.of());
+            assertNoInternalAnalysisFieldsLeak(body);
+        }
+        assertThat(processAnalysisModelClient.invocations).isEqualTo(4);
+    }
+
+    @Test
+    void publicClarificationQuestionRootShapeRemainsStableForActionableCases() throws Exception {
+        processAnalysisModelClient.mode = FakeProcessAnalysisModelClient.Mode.BOTH_ABSENT;
+
+        Map<String, Object> body = json(postWithLocale("EN"));
+
+        assertThat(body.keySet()).containsExactlyInAnyOrder(
+                "processDescription",
+                "analysisStatus",
+                "observations",
+                "inferences",
+                "validationQuestions",
+                "stages",
+                "preliminaryAssessment",
+                "technologyFitAssessments",
+                "clarificationQuestions");
+        assertClarificationQuestions(body,
+                Map.of(
+                        "code", "VOLUME_PER_REPORTING_PERIOD",
+                        "question", "What monthly quantity do you use as the reference volume for this process?"),
+                Map.of(
+                        "code", "EFFORT_PER_BUSINESS_ITEM",
+                        "question", "How many minutes of effort per processed business item do you use as the reference value?"));
+        assertThat(processAnalysisModelClient.invocations).isEqualTo(1);
+    }
+
+    @Test
     void allowedPreflightReturnsCorsAuthorizationWithoutAuthentication() throws Exception {
         HttpResponse<String> response = options(ALLOWED_ORIGIN, "Content-Type");
 
@@ -638,6 +681,10 @@ class ProcessAnalysisApiIntegrationTest {
             EFFORT_ABSENT,
             BOTH_ABSENT,
             UNSUPPORTED_NON_ABSENT,
+            VOLUME_ABSENT_MISMATCHED_REF,
+            VOLUME_ABSENT_UNSUPPORTED_EFFORT,
+            BOTH_ABSENT_BLANK_REF,
+            VOLUME_ABSENT_MISSING_LABEL,
             INSUFFICIENT_INFORMATION,
             OUT_OF_SCOPE,
             UNAVAILABLE,
@@ -653,7 +700,15 @@ class ProcessAnalysisApiIntegrationTest {
             invocations++;
             lastCommand = command;
             ProcessUnderstanding understanding = switch (mode) {
-                case SUCCESS, VOLUME_ABSENT, EFFORT_ABSENT, BOTH_ABSENT, UNSUPPORTED_NON_ABSENT -> new ProcessUnderstanding(
+                case SUCCESS,
+                        VOLUME_ABSENT,
+                        EFFORT_ABSENT,
+                        BOTH_ABSENT,
+                        UNSUPPORTED_NON_ABSENT,
+                        VOLUME_ABSENT_MISMATCHED_REF,
+                        VOLUME_ABSENT_UNSUPPORTED_EFFORT,
+                        BOTH_ABSENT_BLANK_REF,
+                        VOLUME_ABSENT_MISSING_LABEL -> new ProcessUnderstanding(
                         command.description(),
                         List.of("El proceso recibe pedidos por mensajeria."),
                         List.of("Puede existir una verificacion manual antes de confirmar."),
@@ -736,6 +791,28 @@ class ProcessAnalysisApiIntegrationTest {
                                 com.codeworkdigital.api.processanalysis.domain.ProcessEffortDurationUnit.MINUTE,
                                 "entre 2 y 4 minutos por pedido",
                                 null));
+                case VOLUME_ABSENT_MISMATCHED_REF -> new ProcessEffortEvidence(
+                        absentQuantity("item-A", "pedido"),
+                        exactEffort("3", "item-B", "pedido"));
+                case VOLUME_ABSENT_UNSUPPORTED_EFFORT -> new ProcessEffortEvidence(
+                        absentQuantity("item-1", "pedido"),
+                        new ProcessEffortEvidenceQuantity(
+                                ProcessEffortEvidenceQuantityStatus.RANGE,
+                                null,
+                                new BigDecimal("2"),
+                                new BigDecimal("4"),
+                                "item-1",
+                                "pedido",
+                                null,
+                                com.codeworkdigital.api.processanalysis.domain.ProcessEffortDurationUnit.MINUTE,
+                                "entre 2 y 4 minutos por pedido",
+                                null));
+                case BOTH_ABSENT_BLANK_REF -> new ProcessEffortEvidence(
+                        absentQuantity(" ", "pedido"),
+                        absentQuantity(" ", "pedido"));
+                case VOLUME_ABSENT_MISSING_LABEL -> new ProcessEffortEvidence(
+                        absentQuantity("item-1", "pedido"),
+                        exactEffort("3", "item-1", " "));
                 case SUCCESS, INSUFFICIENT_INFORMATION, OUT_OF_SCOPE, UNAVAILABLE, INVALID_RESPONSE -> exactEvidence();
             };
         }
