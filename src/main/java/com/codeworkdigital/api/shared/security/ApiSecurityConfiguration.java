@@ -25,6 +25,7 @@ public class ApiSecurityConfiguration {
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/api/v1/contact-submissions").permitAll()
                         .requestMatchers("/api/labs/process-analysis").permitAll()
+                        .requestMatchers("/api/labs/process-analysis/clarifications/*/answers").permitAll()
                         .requestMatchers("/actuator/health").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated())

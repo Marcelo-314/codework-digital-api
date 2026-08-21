@@ -13,6 +13,8 @@ public class ApiCorsConfiguration implements WebMvcConfigurer {
 
     private static final String CONTACT_SUBMISSIONS_PATH = "/api/v1/contact-submissions";
     private static final String PROCESS_ANALYSIS_PATH = "/api/labs/process-analysis";
+    private static final String PROCESS_ANALYSIS_CLARIFICATION_ANSWERS_PATH =
+            "/api/labs/process-analysis/clarifications/*/answers";
 
     private final ApiWebProperties properties;
 
@@ -24,6 +26,7 @@ public class ApiCorsConfiguration implements WebMvcConfigurer {
     public void addCorsMappings(CorsRegistry registry) {
         registerPostJsonCors(registry, CONTACT_SUBMISSIONS_PATH, "Idempotency-Key", HttpHeaders.ACCEPT);
         registerPostJsonCors(registry, PROCESS_ANALYSIS_PATH);
+        registerPostJsonCors(registry, PROCESS_ANALYSIS_CLARIFICATION_ANSWERS_PATH);
     }
 
     private void registerPostJsonCors(CorsRegistry registry, String path, String... extraAllowedHeaders) {

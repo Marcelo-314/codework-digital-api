@@ -13,6 +13,10 @@ import com.codeworkdigital.api.processanalysis.application.ProcessEffortClarific
 import com.codeworkdigital.api.processanalysis.application.ProcessEffortClarificationContinuationId;
 import com.codeworkdigital.api.processanalysis.application.ProcessEffortClarificationContinuationIssuer;
 import com.codeworkdigital.api.processanalysis.application.ProcessEffortClarificationContinuationRepository;
+import com.codeworkdigital.api.processanalysis.application.ProcessEffortClarificationContinuationResolutionService;
+import com.codeworkdigital.api.processanalysis.application.ProcessEffortClarificationAnswerMaterializer;
+import com.codeworkdigital.api.processanalysis.application.ProcessEffortClarificationResolver;
+import com.codeworkdigital.api.processanalysis.application.ProcessEffortEstablishedKnowledgeComposer;
 import com.codeworkdigital.api.processanalysis.application.ProcessEffortEvidence;
 import com.codeworkdigital.api.processanalysis.application.ProcessEffortEvidenceProjectionMapper;
 import com.codeworkdigital.api.processanalysis.application.ProcessEffortEvidenceQuantity;
@@ -362,6 +366,388 @@ class ProcessAnalysisApiIntegrationTest {
     }
 
     @Test
+    void volumeClarificationAnswerReturnsNarrowResolutionWithoutAuthenticationOrSecondModelCall() throws Exception {
+        processAnalysisModelClient.mode = FakeProcessAnalysisModelClient.Mode.VOLUME_ABSENT;
+        String clarificationId = assertNonNullClarificationId(json(postWithLocale("EN")));
+
+        HttpResponse<String> response = answer(clarificationId, """
+                {
+                  "answers": [
+                    {
+                      "code": "VOLUME_PER_REPORTING_PERIOD",
+                      "value": 4000
+                    }
+                  ]
+                }
+                """);
+        Map<String, Object> body = json(response);
+
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat(response.headers().firstValue("www-authenticate")).isEmpty();
+        assertThat(body.keySet()).containsExactlyInAnyOrder(
+                "clarificationId",
+                "operationalBurden",
+                "materialityOutcome");
+        assertThat(body.get("clarificationId")).isEqualTo(clarificationId);
+        Map<?, ?> burden = (Map<?, ?>) body.get("operationalBurden");
+        assertThat(new BigDecimal(burden.get("magnitude").toString())).isEqualByComparingTo("12000");
+        assertThat(burden.get("unit")).isEqualTo("MINUTE_PER_MONTH");
+        assertThat(body.get("materialityOutcome")).isEqualTo("OPPORTUNITY_IDENTIFIED");
+        assertThat(response.body()).doesNotContain(
+                "NOT_ESTABLISHED",
+                "businessItemRef",
+                "businessItemLabel",
+                "SOURCE_STATED",
+                "DETERMINISTICALLY_DERIVED",
+                "premise",
+                "threshold",
+                "sourceKnowledge",
+                "knownFacts",
+                "evidence",
+                "item-1");
+        assertThat(processAnalysisModelClient.invocations).isEqualTo(1);
+        assertThat(continuationRepository.findById(new ProcessEffortClarificationContinuationId(
+                        UUID.fromString(clarificationId))).orElseThrow().resolvedAt())
+                .contains(Instant.parse("2026-08-21T12:00:00Z"));
+    }
+
+    @Test
+    void effortClarificationAnswerReturnsNarrowResolution() throws Exception {
+        processAnalysisModelClient.mode = FakeProcessAnalysisModelClient.Mode.EFFORT_ABSENT;
+        String clarificationId = assertNonNullClarificationId(json(postWithLocale("EN")));
+
+        Map<String, Object> body = json(answer(clarificationId, """
+                {
+                  "answers": [
+                    {
+                      "code": "EFFORT_PER_BUSINESS_ITEM",
+                      "value": 2
+                    }
+                  ]
+                }
+                """));
+
+        Map<?, ?> burden = (Map<?, ?>) body.get("operationalBurden");
+        assertThat(new BigDecimal(burden.get("magnitude").toString())).isEqualByComparingTo("8000");
+        assertThat(burden.get("unit")).isEqualTo("MINUTE_PER_MONTH");
+        assertThat(body.get("materialityOutcome")).isEqualTo("OPPORTUNITY_IDENTIFIED");
+    }
+
+    @Test
+    void bothClarificationAnswersReturnExpectedMaterialityOutcome() throws Exception {
+        processAnalysisModelClient.mode = FakeProcessAnalysisModelClient.Mode.BOTH_ABSENT;
+        String clarificationId = assertNonNullClarificationId(json(postWithLocale("EN")));
+
+        Map<String, Object> body = json(answer(clarificationId, """
+                {
+                  "answers": [
+                    {
+                      "code": "VOLUME_PER_REPORTING_PERIOD",
+                      "value": 4
+                    },
+                    {
+                      "code": "EFFORT_PER_BUSINESS_ITEM",
+                      "value": 2
+                    }
+                  ]
+                }
+                """));
+
+        Map<?, ?> burden = (Map<?, ?>) body.get("operationalBurden");
+        assertThat(new BigDecimal(burden.get("magnitude").toString())).isEqualByComparingTo("8");
+        assertThat(body.get("materialityOutcome"))
+                .isEqualTo("NO_MATERIAL_JUSTIFICATION_IDENTIFIED");
+    }
+
+    @Test
+    void malformedClarificationIdReturnsBadRequestProblem() throws Exception {
+        HttpResponse<String> response = answer("not-a-uuid", """
+                {
+                  "answers": [
+                    {
+                      "code": "VOLUME_PER_REPORTING_PERIOD",
+                      "value": 4000
+                    }
+                  ]
+                }
+                """);
+
+        assertProblem(response, 400, "validation_failed",
+                "/api/labs/process-analysis/clarifications/not-a-uuid/answers");
+    }
+
+    @Test
+    void unsupportedAnswerCodeReturnsBadRequestWithoutConsumingContinuation() throws Exception {
+        processAnalysisModelClient.mode = FakeProcessAnalysisModelClient.Mode.VOLUME_ABSENT;
+        String clarificationId = assertNonNullClarificationId(json(postWithLocale("EN")));
+
+        HttpResponse<String> response = answer(clarificationId, """
+                {
+                  "answers": [
+                    {
+                      "code": "QUESTION_TEXT_IS_NOT_A_CODE",
+                      "value": 4000
+                    }
+                  ]
+                }
+                """);
+
+        assertProblem(response, 400, "validation_failed", answerPath(clarificationId));
+        assertContinuationRetryable(clarificationId);
+    }
+
+    @Test
+    void missingClarificationReturnsNotFoundProblem() throws Exception {
+        String clarificationId = UUID.randomUUID().toString();
+
+        HttpResponse<String> response = answer(clarificationId, """
+                {
+                  "answers": [
+                    {
+                      "code": "VOLUME_PER_REPORTING_PERIOD",
+                      "value": 4000
+                    }
+                  ]
+                }
+                """);
+
+        assertProblem(response, 404, "clarification_not_found", answerPath(clarificationId));
+    }
+
+    @Test
+    void expiredClarificationReturnsGoneProblem() throws Exception {
+        processAnalysisModelClient.mode = FakeProcessAnalysisModelClient.Mode.VOLUME_ABSENT;
+        String clarificationId = assertNonNullClarificationId(json(postWithLocale("EN")));
+        continuationRepository.expire(clarificationId);
+
+        HttpResponse<String> response = answer(clarificationId, """
+                {
+                  "answers": [
+                    {
+                      "code": "VOLUME_PER_REPORTING_PERIOD",
+                      "value": 4000
+                    }
+                  ]
+                }
+                """);
+
+        assertProblem(response, 410, "clarification_expired", answerPath(clarificationId));
+        assertContinuationRetryable(clarificationId);
+    }
+
+    @Test
+    void alreadyResolvedClarificationReturnsConflictProblem() throws Exception {
+        processAnalysisModelClient.mode = FakeProcessAnalysisModelClient.Mode.VOLUME_ABSENT;
+        String clarificationId = assertNonNullClarificationId(json(postWithLocale("EN")));
+        continuationRepository.resolve(clarificationId);
+
+        HttpResponse<String> response = answer(clarificationId, """
+                {
+                  "answers": [
+                    {
+                      "code": "VOLUME_PER_REPORTING_PERIOD",
+                      "value": 4000
+                    }
+                  ]
+                }
+                """);
+
+        assertProblem(response, 409, "clarification_already_resolved", answerPath(clarificationId));
+    }
+
+    @Test
+    void lifecycleRaceReturnsConflictAfterSuccessfulCalculation() throws Exception {
+        processAnalysisModelClient.mode = FakeProcessAnalysisModelClient.Mode.VOLUME_ABSENT;
+        String clarificationId = assertNonNullClarificationId(json(postWithLocale("EN")));
+        continuationRepository.markResult = false;
+
+        HttpResponse<String> response = answer(clarificationId, """
+                {
+                  "answers": [
+                    {
+                      "code": "VOLUME_PER_REPORTING_PERIOD",
+                      "value": 4000
+                    }
+                  ]
+                }
+                """);
+
+        assertProblem(response, 409, "clarification_lifecycle_conflict", answerPath(clarificationId));
+        assertContinuationRetryable(clarificationId);
+    }
+
+    @Test
+    void invalidAnswerPayloadDoesNotConsumeContinuationAndCanBeRetried() throws Exception {
+        processAnalysisModelClient.mode = FakeProcessAnalysisModelClient.Mode.BOTH_ABSENT;
+        String clarificationId = assertNonNullClarificationId(json(postWithLocale("EN")));
+
+        assertProblem(answer(clarificationId, """
+                {
+                  "answers": [
+                    {
+                      "code": "VOLUME_PER_REPORTING_PERIOD",
+                      "value": 4000
+                    }
+                  ]
+                }
+                """), 400, "validation_failed", answerPath(clarificationId));
+        assertContinuationRetryable(clarificationId);
+
+        HttpResponse<String> retry = answer(clarificationId, """
+                {
+                  "answers": [
+                    {
+                      "code": "VOLUME_PER_REPORTING_PERIOD",
+                      "value": 4000
+                    },
+                    {
+                      "code": "EFFORT_PER_BUSINESS_ITEM",
+                      "value": 2
+                    }
+                  ]
+                }
+                """);
+        assertThat(retry.statusCode()).isEqualTo(200);
+    }
+
+    @Test
+    void duplicateExtraAndNegativeAnswerPayloadsReturnBadRequestWithoutInternalLeaks() throws Exception {
+        processAnalysisModelClient.mode = FakeProcessAnalysisModelClient.Mode.VOLUME_ABSENT;
+        String duplicateId = assertNonNullClarificationId(json(postWithLocale("EN")));
+        assertProblem(answer(duplicateId, """
+                {
+                  "answers": [
+                    {
+                      "code": "VOLUME_PER_REPORTING_PERIOD",
+                      "value": 4000
+                    },
+                    {
+                      "code": "VOLUME_PER_REPORTING_PERIOD",
+                      "value": 5000
+                    }
+                  ]
+                }
+                """), 400, "validation_failed", answerPath(duplicateId));
+        assertContinuationRetryable(duplicateId);
+
+        String extraId = assertNonNullClarificationId(json(postWithLocale("EN")));
+        assertProblem(answer(extraId, """
+                {
+                  "answers": [
+                    {
+                      "code": "VOLUME_PER_REPORTING_PERIOD",
+                      "value": 4000
+                    },
+                    {
+                      "code": "EFFORT_PER_BUSINESS_ITEM",
+                      "value": 2
+                    }
+                  ]
+                }
+                """), 400, "validation_failed", answerPath(extraId));
+        assertContinuationRetryable(extraId);
+
+        String negativeId = assertNonNullClarificationId(json(postWithLocale("EN")));
+        HttpResponse<String> negative = answer(negativeId, """
+                {
+                  "answers": [
+                    {
+                      "code": "VOLUME_PER_REPORTING_PERIOD",
+                      "value": -1
+                    }
+                  ]
+                }
+                """);
+        assertProblem(negative, 400, "validation_failed", answerPath(negativeId));
+        assertContinuationRetryable(negativeId);
+        assertThat(negative.body()).doesNotContain(
+                "businessItemRef",
+                "businessItemLabel",
+                "knownFacts",
+                "source-process-description",
+                "item-1");
+    }
+
+    @Test
+    void answerPayloadRejectsNonPublicFields() throws Exception {
+        processAnalysisModelClient.mode = FakeProcessAnalysisModelClient.Mode.VOLUME_ABSENT;
+        String clarificationId = assertNonNullClarificationId(json(postWithLocale("EN")));
+
+        HttpResponse<String> response = answer(clarificationId, """
+                {
+                  "answers": [
+                    {
+                      "code": "VOLUME_PER_REPORTING_PERIOD",
+                      "value": 4000,
+                      "unit": "MINUTE_PER_MONTH"
+                    }
+                  ]
+                }
+                """);
+
+        assertProblem(response, 400, "invalid_request", answerPath(clarificationId));
+        assertContinuationRetryable(clarificationId);
+    }
+
+    @Test
+    void secondAnswerRequestForSameClarificationDoesNotResolveAgain() throws Exception {
+        processAnalysisModelClient.mode = FakeProcessAnalysisModelClient.Mode.VOLUME_ABSENT;
+        String clarificationId = assertNonNullClarificationId(json(postWithLocale("EN")));
+
+        assertThat(answer(clarificationId, """
+                {
+                  "answers": [
+                    {
+                      "code": "VOLUME_PER_REPORTING_PERIOD",
+                      "value": 4000
+                    }
+                  ]
+                }
+                """).statusCode()).isEqualTo(200);
+
+        HttpResponse<String> second = answer(clarificationId, """
+                {
+                  "answers": [
+                    {
+                      "code": "VOLUME_PER_REPORTING_PERIOD",
+                      "value": 4000
+                    }
+                  ]
+                }
+                """);
+        assertProblem(second, 409, "clarification_already_resolved", answerPath(clarificationId));
+        assertThat(continuationRepository.markCalls).isEqualTo(1);
+    }
+
+    @Test
+    void clarificationAnswerPreflightReturnsCorsAuthorizationWithoutAuthentication() throws Exception {
+        HttpResponse<String> response = options(
+                "/api/labs/process-analysis/clarifications/%s/answers".formatted(UUID.randomUUID()),
+                ALLOWED_ORIGIN,
+                "Content-Type");
+
+        assertThat(response.statusCode()).isBetween(200, 299);
+        assertThat(response.headers().firstValue("www-authenticate")).isEmpty();
+        assertThat(response.headers().firstValue("access-control-allow-origin")).contains(ALLOWED_ORIGIN);
+        assertThat(response.headers().firstValue("access-control-allow-methods")).hasValueSatisfying(value ->
+                assertThat(value).contains("POST"));
+        assertThat(response.headers().firstValue("access-control-allow-headers")).hasValueSatisfying(value ->
+                assertThat(value.toLowerCase()).contains("content-type"));
+        assertThat(response.headers().firstValue("access-control-max-age")).contains("3600");
+    }
+
+    @Test
+    void clarificationAnswerDisallowedPreflightDoesNotAuthorizeCors() throws Exception {
+        HttpResponse<String> response = options(
+                "/api/labs/process-analysis/clarifications/%s/answers".formatted(UUID.randomUUID()),
+                DISALLOWED_ORIGIN,
+                "Content-Type");
+
+        assertThat(response.statusCode()).isEqualTo(403);
+        assertThat(response.headers().firstValue("access-control-allow-origin")).isEmpty();
+    }
+
+    @Test
     void allowedPreflightReturnsCorsAuthorizationWithoutAuthentication() throws Exception {
         HttpResponse<String> response = options(ALLOWED_ORIGIN, "Content-Type");
 
@@ -700,14 +1086,38 @@ class ProcessAnalysisApiIntegrationTest {
     }
 
     private HttpResponse<String> options(String origin, String requestHeaders) throws IOException, InterruptedException {
+        return options("/api/labs/process-analysis", origin, requestHeaders);
+    }
+
+    private HttpResponse<String> options(String path, String origin, String requestHeaders)
+            throws IOException, InterruptedException {
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create("http://localhost:" + port + "/api/labs/process-analysis"))
+                .uri(URI.create("http://localhost:" + port + path))
                 .header("Origin", origin)
                 .header("Access-Control-Request-Method", "POST")
                 .header("Access-Control-Request-Headers", requestHeaders)
                 .method("OPTIONS", HttpRequest.BodyPublishers.noBody())
                 .build();
         return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    }
+
+    private HttpResponse<String> answer(String clarificationId, String body) throws IOException, InterruptedException {
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create("http://localhost:" + port + answerPath(clarificationId)))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(body))
+                .build();
+        return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    }
+
+    private String answerPath(String clarificationId) {
+        return "/api/labs/process-analysis/clarifications/" + clarificationId + "/answers";
+    }
+
+    private void assertContinuationRetryable(String clarificationId) {
+        assertThat(continuationRepository.findById(new ProcessEffortClarificationContinuationId(
+                        UUID.fromString(clarificationId))).orElseThrow().resolvedAt())
+                .isEmpty();
     }
 
     @SuppressWarnings("unchecked")
@@ -725,6 +1135,10 @@ class ProcessAnalysisApiIntegrationTest {
             ProcessAnalysisController.class,
             ProcessAnalysisApplicationService.class,
             ProcessEffortClarificationContinuationIssuer.class,
+            ProcessEffortClarificationContinuationResolutionService.class,
+            ProcessEffortClarificationResolver.class,
+            ProcessEffortClarificationAnswerMaterializer.class,
+            ProcessEffortEstablishedKnowledgeComposer.class,
             TechnologyFitAssessmentEvaluator.class,
             ApiSecurityConfiguration.class,
             ApiCorsConfiguration.class,
@@ -763,6 +1177,8 @@ class ProcessAnalysisApiIntegrationTest {
 
         private final List<ProcessEffortClarificationContinuation> saved = new ArrayList<>();
         private RuntimeException failure;
+        private boolean markResult = true;
+        private int markCalls;
 
         @Override
         public void save(ProcessEffortClarificationContinuation continuation) {
@@ -784,12 +1200,68 @@ class ProcessAnalysisApiIntegrationTest {
         public boolean markResolvedIfActive(
                 ProcessEffortClarificationContinuationId id,
                 Instant resolvedAt) {
-            throw new UnsupportedOperationException("HTTP issuance flow does not resolve continuations");
+            markCalls++;
+            if (!markResult) {
+                return false;
+            }
+            for (int index = 0; index < saved.size(); index++) {
+                ProcessEffortClarificationContinuation continuation = saved.get(index);
+                if (continuation.id().equals(id)
+                        && !continuation.isResolved()
+                        && !continuation.isExpired(resolvedAt)) {
+                    saved.set(index, new ProcessEffortClarificationContinuation(
+                            continuation.id(),
+                            continuation.context(),
+                            continuation.createdAt(),
+                            continuation.expiresAt(),
+                            Optional.of(resolvedAt)));
+                    return true;
+                }
+            }
+            return false;
         }
 
         void reset() {
             saved.clear();
             failure = null;
+            markResult = true;
+            markCalls = 0;
+        }
+
+        void expire(String clarificationId) {
+            replace(
+                    clarificationId,
+                    Instant.parse("2026-08-21T11:58:00Z"),
+                    Instant.parse("2026-08-21T12:00:00Z"),
+                    Optional.empty());
+        }
+
+        void resolve(String clarificationId) {
+            replace(
+                    clarificationId,
+                    null,
+                    null,
+                    Optional.of(Instant.parse("2026-08-21T12:00:00Z")));
+        }
+
+        private void replace(
+                String clarificationId,
+                Instant createdAt,
+                Instant expiresAt,
+                Optional<Instant> resolvedAt) {
+            UUID id = UUID.fromString(clarificationId);
+            for (int index = 0; index < saved.size(); index++) {
+                ProcessEffortClarificationContinuation continuation = saved.get(index);
+                if (continuation.id().value().equals(id)) {
+                    saved.set(index, new ProcessEffortClarificationContinuation(
+                            continuation.id(),
+                            continuation.context(),
+                            createdAt == null ? continuation.createdAt() : createdAt,
+                            expiresAt == null ? continuation.expiresAt() : expiresAt,
+                            resolvedAt));
+                    return;
+                }
+            }
         }
     }
 

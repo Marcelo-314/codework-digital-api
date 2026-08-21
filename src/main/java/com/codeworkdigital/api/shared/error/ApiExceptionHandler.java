@@ -7,6 +7,12 @@ import com.codeworkdigital.api.contact.application.IdempotencyConflictException;
 import com.codeworkdigital.api.contact.application.InvalidAdminPaginationException;
 import com.codeworkdigital.api.processanalysis.api.UnsupportedProcessAnalysisValueException;
 import com.codeworkdigital.api.processanalysis.application.InvalidProcessAnalysisModelResponseException;
+import com.codeworkdigital.api.processanalysis.application.ProcessEffortClarificationAlreadyResolvedException;
+import com.codeworkdigital.api.processanalysis.application.ProcessEffortClarificationAnswerValidationException;
+import com.codeworkdigital.api.processanalysis.application.ProcessEffortClarificationExpiredException;
+import com.codeworkdigital.api.processanalysis.application.ProcessEffortClarificationLifecycleConflictException;
+import com.codeworkdigital.api.processanalysis.application.ProcessEffortClarificationNotFoundException;
+import com.codeworkdigital.api.processanalysis.application.ProcessEffortClarificationResolutionInvariantException;
 import com.codeworkdigital.api.processanalysis.application.ProcessAnalysisUnavailableException;
 import com.codeworkdigital.api.processanalysis.application.ProcessAnalysisValidationException;
 import com.codeworkdigital.api.shared.web.RequestBodyTooLargeException;
@@ -122,6 +128,55 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
             WebRequest request) {
         return problem(HttpStatus.SERVICE_UNAVAILABLE, "process_analysis_unavailable",
                 "Process analysis unavailable", "Process analysis is temporarily unavailable. Try again later.", request);
+    }
+
+    @ExceptionHandler(ProcessEffortClarificationAnswerValidationException.class)
+    ResponseEntity<Object> handleProcessEffortClarificationAnswerValidation(
+            ProcessEffortClarificationAnswerValidationException exception,
+            WebRequest request) {
+        ProblemDetail problem = validationProblem(request);
+        problem.setProperty("errors", List.of(new ValidationError("answers", "invalid")));
+        return response(problem, HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(ProcessEffortClarificationNotFoundException.class)
+    ResponseEntity<Object> handleProcessEffortClarificationNotFound(
+            ProcessEffortClarificationNotFoundException exception,
+            WebRequest request) {
+        return problem(HttpStatus.NOT_FOUND, "clarification_not_found",
+                "Clarification not found", "The clarification could not be found.", request);
+    }
+
+    @ExceptionHandler(ProcessEffortClarificationExpiredException.class)
+    ResponseEntity<Object> handleProcessEffortClarificationExpired(
+            ProcessEffortClarificationExpiredException exception,
+            WebRequest request) {
+        return problem(HttpStatus.GONE, "clarification_expired",
+                "Clarification expired", "The clarification has expired.", request);
+    }
+
+    @ExceptionHandler(ProcessEffortClarificationAlreadyResolvedException.class)
+    ResponseEntity<Object> handleProcessEffortClarificationAlreadyResolved(
+            ProcessEffortClarificationAlreadyResolvedException exception,
+            WebRequest request) {
+        return problem(HttpStatus.CONFLICT, "clarification_already_resolved",
+                "Clarification already resolved", "The clarification has already been resolved.", request);
+    }
+
+    @ExceptionHandler(ProcessEffortClarificationLifecycleConflictException.class)
+    ResponseEntity<Object> handleProcessEffortClarificationLifecycleConflict(
+            ProcessEffortClarificationLifecycleConflictException exception,
+            WebRequest request) {
+        return problem(HttpStatus.CONFLICT, "clarification_lifecycle_conflict",
+                "Clarification lifecycle conflict", "The clarification is no longer active.", request);
+    }
+
+    @ExceptionHandler(ProcessEffortClarificationResolutionInvariantException.class)
+    ResponseEntity<Object> handleProcessEffortClarificationResolutionInvariant(
+            ProcessEffortClarificationResolutionInvariantException exception,
+            WebRequest request) {
+        return problem(HttpStatus.INTERNAL_SERVER_ERROR, "clarification_resolution_failed",
+                "Clarification resolution failed", "The clarification could not be resolved.", request);
     }
 
     @ExceptionHandler(InvalidProcessAnalysisModelResponseException.class)
