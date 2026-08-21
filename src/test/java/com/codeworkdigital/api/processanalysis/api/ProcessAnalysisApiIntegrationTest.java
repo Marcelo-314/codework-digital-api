@@ -39,6 +39,8 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
@@ -119,6 +121,7 @@ class ProcessAnalysisApiIntegrationTest {
         assertThat((List<?>) body.get("technologyFitAssessments")).hasSize(2);
         assertThat(body.get("clarificationId")).isNull();
         assertThat((List<?>) body.get("clarificationQuestions")).isEmpty();
+        assertInitialReasoning4000By2(body);
         assertThat(body).doesNotContainKey("understanding");
         assertThat(body.keySet()).containsExactlyInAnyOrder(
                 "processDescription",
@@ -130,7 +133,8 @@ class ProcessAnalysisApiIntegrationTest {
                 "preliminaryAssessment",
                 "technologyFitAssessments",
                 "clarificationId",
-                "clarificationQuestions");
+                "clarificationQuestions",
+                "reasoning");
         assertThat(body).doesNotContainKeys(
                 "effortEvidence",
                 "volumeProjection",
@@ -142,8 +146,6 @@ class ProcessAnalysisApiIntegrationTest {
                 "materialityEvidenceGaps",
                 "ProcessEffortMaterialityEvidenceGap",
                 "ProcessEffortMaterialityEvidenceGapKind",
-                "VOLUME_PER_REPORTING_PERIOD",
-                "EFFORT_PER_BUSINESS_ITEM",
                 "ProcessEvidenceGap",
                 "clarification question",
                 "decisionAffected",
@@ -157,11 +159,8 @@ class ProcessAnalysisApiIntegrationTest {
                 "fact-effort-per-business-item",
                 "fact-effort-per-reporting-period",
                 "NOT_ESTABLISHED",
-                "NO_MATERIAL_JUSTIFICATION_IDENTIFIED",
-                "OPPORTUNITY_IDENTIFIED",
-                "2400",
                 "40 hours",
-                "source-process-description",
+                sourceDescriptionArtifactId(),
                 "computableProjection",
                 "evidenceArtifactIds",
                 "businessItemRef",
@@ -176,18 +175,13 @@ class ProcessAnalysisApiIntegrationTest {
                 "prompt",
                 "provider",
                 "8000 minute/month",
-                "2400",
                 "40 hours",
                 "NOT_ESTABLISHED",
-                "NO_MATERIAL_JUSTIFICATION_IDENTIFIED",
-                "OPPORTUNITY_IDENTIFIED",
                 "materialityAssessment",
                 "materialityThreshold",
                 "materialityEvidenceGaps",
                 "ProcessEffortMaterialityEvidenceGap",
                 "ProcessEffortMaterialityEvidenceGapKind",
-                "VOLUME_PER_REPORTING_PERIOD",
-                "EFFORT_PER_BUSINESS_ITEM",
                 "decisionAffected",
                 "SELF_REPORTED",
                 "12 minute per month",
@@ -205,6 +199,7 @@ class ProcessAnalysisApiIntegrationTest {
                         "code", "VOLUME_PER_REPORTING_PERIOD",
                         "question", "What monthly quantity do you use as the reference volume for this process?"));
         assertNonNullClarificationId(body);
+        assertPartialReasoning(body, "EFFORT_PER_BUSINESS_ITEM", "3", "MINUTE_PER_BUSINESS_ITEM");
         assertThat(continuationRepository.saved).hasSize(1);
         assertThat(body).containsKey("validationQuestions");
         assertThat(body).doesNotContainKey("understanding");
@@ -237,6 +232,7 @@ class ProcessAnalysisApiIntegrationTest {
                         "code", "EFFORT_PER_BUSINESS_ITEM",
                         "question", "How many minutes of effort per processed business item do you use as the reference value?"));
         assertNonNullClarificationId(body);
+        assertPartialReasoning(body, "VOLUME_PER_REPORTING_PERIOD", "4000", "BUSINESS_ITEM_PER_MONTH");
         assertThat(continuationRepository.saved).hasSize(1);
         assertNoInternalAnalysisFieldsLeak(body);
         assertThat(processAnalysisModelClient.invocations).isEqualTo(1);
@@ -343,7 +339,9 @@ class ProcessAnalysisApiIntegrationTest {
                 "preliminaryAssessment",
                 "technologyFitAssessments",
                 "clarificationId",
-                "clarificationQuestions");
+                "clarificationQuestions",
+                "reasoning");
+        assertEmptyReasoning(body);
         assertClarificationQuestions(body,
                 Map.of(
                         "code", "VOLUME_PER_REPORTING_PERIOD",
@@ -363,6 +361,20 @@ class ProcessAnalysisApiIntegrationTest {
                 "materialityAssessment",
                 "item-1");
         assertThat(processAnalysisModelClient.invocations).isEqualTo(1);
+    }
+
+    @Test
+    void belowThresholdInitialResultExposesPublicBelowThresholdDecision() throws Exception {
+        processAnalysisModelClient.mode = FakeProcessAnalysisModelClient.Mode.SUCCESS_BELOW_THRESHOLD;
+
+        Map<String, Object> body = json(postWithLocale("EN"));
+
+        Map<?, ?> decision = decision(body);
+        assertThat(decision.get("comparison")).isEqualTo("BELOW_THRESHOLD");
+        assertThat(decision.get("outcome")).isEqualTo("NO_MATERIAL_JUSTIFICATION_IDENTIFIED");
+        Map<?, ?> threshold = (Map<?, ?>) decision.get("threshold");
+        assertThat(new BigDecimal(threshold.get("magnitude").toString())).isEqualByComparingTo("2400");
+        assertThat(threshold.get("unit")).isEqualTo("MINUTE_PER_MONTH");
     }
 
     @Test
@@ -387,12 +399,18 @@ class ProcessAnalysisApiIntegrationTest {
         assertThat(body.keySet()).containsExactlyInAnyOrder(
                 "clarificationId",
                 "operationalBurden",
-                "materialityOutcome");
+                "materialityOutcome",
+                "reasoning");
         assertThat(body.get("clarificationId")).isEqualTo(clarificationId);
         Map<?, ?> burden = (Map<?, ?>) body.get("operationalBurden");
         assertThat(new BigDecimal(burden.get("magnitude").toString())).isEqualByComparingTo("12000");
         assertThat(burden.get("unit")).isEqualTo("MINUTE_PER_MONTH");
         assertThat(body.get("materialityOutcome")).isEqualTo("OPPORTUNITY_IDENTIFIED");
+        assertReasoningInputs(body,
+                input("VOLUME_PER_REPORTING_PERIOD", "4000", "BUSINESS_ITEM_PER_MONTH", "CLARIFICATION_ANSWER"),
+                input("EFFORT_PER_BUSINESS_ITEM", "3", "MINUTE_PER_BUSINESS_ITEM", "PROCESS_DESCRIPTION"));
+        assertCalculation(body, "12000");
+        assertDecision(body, "AT_OR_ABOVE_THRESHOLD", "OPPORTUNITY_IDENTIFIED");
         assertThat(response.body()).doesNotContain(
                 "NOT_ESTABLISHED",
                 "businessItemRef",
@@ -400,7 +418,6 @@ class ProcessAnalysisApiIntegrationTest {
                 "SOURCE_STATED",
                 "DETERMINISTICALLY_DERIVED",
                 "premise",
-                "threshold",
                 "sourceKnowledge",
                 "knownFacts",
                 "evidence",
@@ -431,6 +448,11 @@ class ProcessAnalysisApiIntegrationTest {
         assertThat(new BigDecimal(burden.get("magnitude").toString())).isEqualByComparingTo("8000");
         assertThat(burden.get("unit")).isEqualTo("MINUTE_PER_MONTH");
         assertThat(body.get("materialityOutcome")).isEqualTo("OPPORTUNITY_IDENTIFIED");
+        assertReasoningInputs(body,
+                input("VOLUME_PER_REPORTING_PERIOD", "4000", "BUSINESS_ITEM_PER_MONTH", "PROCESS_DESCRIPTION"),
+                input("EFFORT_PER_BUSINESS_ITEM", "2", "MINUTE_PER_BUSINESS_ITEM", "CLARIFICATION_ANSWER"));
+        assertCalculation(body, "8000");
+        assertDecision(body, "AT_OR_ABOVE_THRESHOLD", "OPPORTUNITY_IDENTIFIED");
     }
 
     @Test
@@ -457,6 +479,97 @@ class ProcessAnalysisApiIntegrationTest {
         assertThat(new BigDecimal(burden.get("magnitude").toString())).isEqualByComparingTo("8");
         assertThat(body.get("materialityOutcome"))
                 .isEqualTo("NO_MATERIAL_JUSTIFICATION_IDENTIFIED");
+        assertReasoningInputs(body,
+                input("VOLUME_PER_REPORTING_PERIOD", "4", "BUSINESS_ITEM_PER_MONTH", "CLARIFICATION_ANSWER"),
+                input("EFFORT_PER_BUSINESS_ITEM", "2", "MINUTE_PER_BUSINESS_ITEM", "CLARIFICATION_ANSWER"));
+        assertCalculation(body, "8");
+        assertDecision(body, "BELOW_THRESHOLD", "NO_MATERIAL_JUSTIFICATION_IDENTIFIED");
+    }
+
+    @Test
+    void clarificationReasoningRepresentsZeroAndDecimalResults() throws Exception {
+        processAnalysisModelClient.mode = FakeProcessAnalysisModelClient.Mode.BOTH_ABSENT;
+        String zeroClarificationId = assertNonNullClarificationId(json(postWithLocale("EN")));
+
+        Map<String, Object> zero = json(answer(zeroClarificationId, """
+                {
+                  "answers": [
+                    {
+                      "code": "VOLUME_PER_REPORTING_PERIOD",
+                      "value": 0
+                    },
+                    {
+                      "code": "EFFORT_PER_BUSINESS_ITEM",
+                      "value": 2
+                    }
+                  ]
+                }
+                """));
+        assertCalculation(zero, "0");
+        assertDecision(zero, "BELOW_THRESHOLD", "NO_MATERIAL_JUSTIFICATION_IDENTIFIED");
+
+        String decimalClarificationId = assertNonNullClarificationId(json(postWithLocale("EN")));
+        Map<String, Object> decimal = json(answer(decimalClarificationId, """
+                {
+                  "answers": [
+                    {
+                      "code": "VOLUME_PER_REPORTING_PERIOD",
+                      "value": 4000.25
+                    },
+                    {
+                      "code": "EFFORT_PER_BUSINESS_ITEM",
+                      "value": 2.5
+                    }
+                  ]
+                }
+                """));
+        assertCalculation(decimal, "10000.625");
+        assertReasoningInputs(decimal,
+                input("VOLUME_PER_REPORTING_PERIOD", "4000.25", "BUSINESS_ITEM_PER_MONTH", "CLARIFICATION_ANSWER"),
+                input("EFFORT_PER_BUSINESS_ITEM", "2.5", "MINUTE_PER_BUSINESS_ITEM", "CLARIFICATION_ANSWER"));
+    }
+
+    @Test
+    void publicReasoningDoesNotLeakInternalGraphFieldsOrClassifySourcesFromStatements() throws Exception {
+        HttpResponse<String> initial = postWithLocale("EN");
+        processAnalysisModelClient.mode = FakeProcessAnalysisModelClient.Mode.BOTH_ABSENT;
+        String clarificationId = assertNonNullClarificationId(json(postWithLocale("EN")));
+        HttpResponse<String> clarified = answer(clarificationId, """
+                {
+                  "answers": [
+                    {
+                      "code": "VOLUME_PER_REPORTING_PERIOD",
+                      "value": 4000
+                    },
+                    {
+                      "code": "EFFORT_PER_BUSINESS_ITEM",
+                      "value": 2
+                    }
+                  ]
+                }
+                """);
+
+        assertNoPublicReasoningLeak(initial.body());
+        assertNoPublicReasoningLeak(clarified.body());
+        assertThat(clarified.body()).doesNotContain("NOT_ESTABLISHED");
+
+        String projector = Files.readString(Path.of(
+                "src/main/java/com/codeworkdigital/api/processanalysis/application/ProcessEffortReasoningProjector.java"));
+        assertThat(projector).doesNotContain(".statement()");
+
+        for (String apiFile : List.of(
+                "src/main/java/com/codeworkdigital/api/processanalysis/api/ProcessAnalysisResponse.java",
+                "src/main/java/com/codeworkdigital/api/processanalysis/api/ProcessEffortClarificationResolutionResponse.java",
+                "src/main/java/com/codeworkdigital/api/processanalysis/api/ProcessEffortReasoningResponse.java",
+                "src/main/java/com/codeworkdigital/api/processanalysis/api/ProcessEffortMaterialityOutcomeResponse.java")) {
+            assertThat(Files.readString(Path.of(apiFile))).doesNotContain(
+                    sourceDescriptionArtifactId(),
+                    volumeClarificationArtifactId(),
+                    effortClarificationArtifactId());
+        }
+        assertThat(Files.readString(Path.of(
+                "src/main/java/com/codeworkdigital/api/processanalysis/api/ProcessEffortClarificationResolutionResponse.java")))
+                .doesNotContain("ProcessEffortMaterialityAssessmentStatus materialityOutcome");
     }
 
     @Test
@@ -664,7 +777,7 @@ class ProcessAnalysisApiIntegrationTest {
                 "businessItemRef",
                 "businessItemLabel",
                 "knownFacts",
-                "source-process-description",
+                sourceDescriptionArtifactId(),
                 "item-1");
     }
 
@@ -813,6 +926,7 @@ class ProcessAnalysisApiIntegrationTest {
         assertThat((List<?>) body.get("technologyFitAssessments")).isEmpty();
         assertThat(body.get("clarificationId")).isNull();
         assertThat(body.get("clarificationQuestions")).isEqualTo(List.of());
+        assertEmptyReasoning(body);
         assertThat(continuationRepository.saved).isEmpty();
         assertThat(processAnalysisModelClient.invocations).isEqualTo(1);
     }
@@ -837,6 +951,7 @@ class ProcessAnalysisApiIntegrationTest {
         assertThat(body.get("clarificationId")).isNull();
         assertThat(body.get("clarificationQuestions")).isEqualTo(List.of());
         assertThat(body.get("preliminaryAssessment")).isEqualTo("");
+        assertEmptyReasoning(body);
         assertThat(response.body()).doesNotContain("irrational", "proof", "theorem");
         assertThat(continuationRepository.saved).isEmpty();
         assertThat(processAnalysisModelClient.invocations).isEqualTo(1);
@@ -986,6 +1101,89 @@ class ProcessAnalysisApiIntegrationTest {
         return clarificationId;
     }
 
+    private void assertInitialReasoning4000By2(Map<String, Object> body) {
+        assertReasoningInputs(body,
+                input("VOLUME_PER_REPORTING_PERIOD", "4000", "BUSINESS_ITEM_PER_MONTH", "PROCESS_DESCRIPTION"),
+                input("EFFORT_PER_BUSINESS_ITEM", "2", "MINUTE_PER_BUSINESS_ITEM", "PROCESS_DESCRIPTION"));
+        assertCalculation(body, "8000");
+        Map<?, ?> decision = decision(body);
+        assertThat(decision.get("criterion")).isEqualTo("LAB_OPERATIONAL_BURDEN_THRESHOLD");
+        Map<?, ?> threshold = (Map<?, ?>) decision.get("threshold");
+        assertThat(new BigDecimal(threshold.get("magnitude").toString())).isEqualByComparingTo("2400");
+        assertThat(threshold.get("unit")).isEqualTo("MINUTE_PER_MONTH");
+        assertThat(decision.get("comparison")).isEqualTo("AT_OR_ABOVE_THRESHOLD");
+        assertThat(decision.get("outcome")).isEqualTo("OPPORTUNITY_IDENTIFIED");
+    }
+
+    @SafeVarargs
+    private void assertReasoningInputs(Map<String, Object> body, Map<String, String>... expectedInputs) {
+        Map<?, ?> reasoning = reasoning(body);
+        assertThat(reasoning.keySet().stream().map(Object::toString).toList())
+                .containsExactlyInAnyOrder("establishedInputs", "calculation", "decision");
+        List<?> inputs = (List<?>) reasoning.get("establishedInputs");
+        assertThat(inputs).hasSize(expectedInputs.length);
+        for (int index = 0; index < expectedInputs.length; index++) {
+            Map<?, ?> actual = (Map<?, ?>) inputs.get(index);
+            Map<String, String> expected = expectedInputs[index];
+            assertThat(actual.keySet().stream().map(Object::toString).toList())
+                    .containsExactlyInAnyOrder("code", "magnitude", "unit", "source");
+            assertThat(actual.get("code")).isEqualTo(expected.get("code"));
+            assertThat(new BigDecimal(actual.get("magnitude").toString()))
+                    .isEqualByComparingTo(expected.get("magnitude"));
+            assertThat(actual.get("unit")).isEqualTo(expected.get("unit"));
+            assertThat(actual.get("source")).isEqualTo(expected.get("source"));
+        }
+    }
+
+    private Map<String, String> input(String code, String magnitude, String unit, String source) {
+        return Map.of(
+                "code", code,
+                "magnitude", magnitude,
+                "unit", unit,
+                "source", source);
+    }
+
+    private void assertPartialReasoning(Map<String, Object> body, String code, String magnitude, String unit) {
+        assertReasoningInputs(body, input(code, magnitude, unit, "PROCESS_DESCRIPTION"));
+        Map<?, ?> reasoning = reasoning(body);
+        assertThat(reasoning.get("calculation")).isNull();
+        assertThat(reasoning.get("decision")).isNull();
+    }
+
+    private void assertEmptyReasoning(Map<String, Object> body) {
+        Map<?, ?> reasoning = reasoning(body);
+        assertThat((List<?>) reasoning.get("establishedInputs")).isEmpty();
+        assertThat(reasoning.get("calculation")).isNull();
+        assertThat(reasoning.get("decision")).isNull();
+    }
+
+    private void assertCalculation(Map<String, Object> body, String magnitude) {
+        Map<?, ?> calculation = (Map<?, ?>) reasoning(body).get("calculation");
+        assertThat(calculation.get("operation")).isEqualTo("MULTIPLY");
+        Map<?, ?> result = (Map<?, ?>) calculation.get("result");
+        assertThat(new BigDecimal(result.get("magnitude").toString())).isEqualByComparingTo(magnitude);
+        assertThat(result.get("unit")).isEqualTo("MINUTE_PER_MONTH");
+    }
+
+    private void assertDecision(Map<String, Object> body, String comparison, String outcome) {
+        Map<?, ?> decision = decision(body);
+        assertThat(decision.get("criterion")).isEqualTo("LAB_OPERATIONAL_BURDEN_THRESHOLD");
+        Map<?, ?> threshold = (Map<?, ?>) decision.get("threshold");
+        assertThat(new BigDecimal(threshold.get("magnitude").toString())).isEqualByComparingTo("2400");
+        assertThat(threshold.get("unit")).isEqualTo("MINUTE_PER_MONTH");
+        assertThat(decision.get("comparison")).isEqualTo(comparison);
+        assertThat(decision.get("outcome")).isEqualTo(outcome);
+    }
+
+    private Map<?, ?> decision(Map<String, Object> body) {
+        return (Map<?, ?>) reasoning(body).get("decision");
+    }
+
+    private Map<?, ?> reasoning(Map<String, Object> body) {
+        assertThat(body.get("reasoning")).isInstanceOf(Map.class);
+        return (Map<?, ?>) body.get("reasoning");
+    }
+
     private void assertNoInternalAnalysisFieldsLeak(Map<String, Object> body) {
         assertThat(body.keySet()).doesNotContain(
                 "effortEvidence",
@@ -1032,9 +1230,6 @@ class ProcessAnalysisApiIntegrationTest {
                 "materialityAssessment",
                 "materialityThreshold",
                 "NOT_ESTABLISHED",
-                "NO_MATERIAL_JUSTIFICATION_IDENTIFIED",
-                "OPPORTUNITY_IDENTIFIED",
-                "2400",
                 "40 hours",
                 "establishedOperationalBurden",
                 "derivedResult",
@@ -1051,6 +1246,37 @@ class ProcessAnalysisApiIntegrationTest {
                 "conversationId",
                 "sessionId",
                 "analysisId");
+    }
+
+    private void assertNoPublicReasoningLeak(String body) {
+        assertThat(body).doesNotContain(
+                "SOURCE_STATED",
+                "DETERMINISTICALLY_DERIVED",
+                "ProcessKnownFact",
+                "fact-volume-per-reporting-period",
+                "fact-effort-per-business-item",
+                "fact-effort-per-reporting-period",
+                sourceDescriptionArtifactId(),
+                volumeClarificationArtifactId(),
+                effortClarificationArtifactId(),
+                "premiseFactIds",
+                "evidenceArtifactIds",
+                "businessItemRef",
+                "businessItemLabel",
+                "ProcessAnalysisScope",
+                "ProcessQuantityProjection");
+    }
+
+    private String sourceDescriptionArtifactId() {
+        return "source-" + "process-" + "description";
+    }
+
+    private String volumeClarificationArtifactId() {
+        return "source-" + "clarification-" + "volume-" + "per-" + "reporting-" + "period";
+    }
+
+    private String effortClarificationArtifactId() {
+        return "source-" + "clarification-" + "effort-" + "per-" + "business-" + "item";
     }
 
     private HttpResponse<String> post(String body) throws IOException, InterruptedException {
@@ -1276,6 +1502,7 @@ class ProcessAnalysisApiIntegrationTest {
 
         enum Mode {
             SUCCESS,
+            SUCCESS_BELOW_THRESHOLD,
             VOLUME_ABSENT,
             EFFORT_ABSENT,
             BOTH_ABSENT,
@@ -1300,6 +1527,7 @@ class ProcessAnalysisApiIntegrationTest {
             lastCommand = command;
             ProcessUnderstanding understanding = switch (mode) {
                 case SUCCESS,
+                        SUCCESS_BELOW_THRESHOLD,
                         VOLUME_ABSENT,
                         EFFORT_ABSENT,
                         BOTH_ABSENT,
@@ -1413,10 +1641,17 @@ class ProcessAnalysisApiIntegrationTest {
                         absentQuantity("item-1", "pedido"),
                         exactEffort("3", "item-1", " "));
                 case SUCCESS, INSUFFICIENT_INFORMATION, OUT_OF_SCOPE, UNAVAILABLE, INVALID_RESPONSE -> exactEvidence();
+                case SUCCESS_BELOW_THRESHOLD -> belowThresholdEvidence();
             };
         }
 
         private ProcessEffortEvidence exactEvidence() {
+            return new ProcessEffortEvidence(
+                    exactVolume("4000", "item-1", "pedido"),
+                    exactEffort("2", "item-1", "pedido"));
+        }
+
+        private ProcessEffortEvidence belowThresholdEvidence() {
             return new ProcessEffortEvidence(
                     exactVolume("4", "item-1", "pedido"),
                     exactEffort("3", "item-1", "pedido"));

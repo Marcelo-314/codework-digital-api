@@ -3,6 +3,7 @@ package com.codeworkdigital.api.processanalysis.api;
 import com.codeworkdigital.api.processanalysis.application.ProcessAnalysisResult;
 import com.codeworkdigital.api.processanalysis.application.ProcessAnalysisStatus;
 import com.codeworkdigital.api.processanalysis.application.ProcessEffortClarificationContinuationId;
+import com.codeworkdigital.api.processanalysis.application.ProcessEffortReasoningProjector;
 import com.codeworkdigital.api.processanalysis.application.ProcessUnderstanding;
 import com.codeworkdigital.api.processanalysis.application.ProcessUnderstandingStage;
 import com.codeworkdigital.api.processanalysis.application.TechnologyFitAssessment;
@@ -20,7 +21,8 @@ public record ProcessAnalysisResponse(
         String preliminaryAssessment,
         List<TechnologyFitAssessment> technologyFitAssessments,
         String clarificationId,
-        List<ProcessAnalysisClarificationQuestionResponse> clarificationQuestions) {
+        List<ProcessAnalysisClarificationQuestionResponse> clarificationQuestions,
+        ProcessEffortReasoningResponse reasoning) {
 
     public ProcessAnalysisResponse {
         processDescription = Objects.requireNonNull(processDescription, "processDescription");
@@ -32,6 +34,7 @@ public record ProcessAnalysisResponse(
         preliminaryAssessment = Objects.requireNonNull(preliminaryAssessment, "preliminaryAssessment");
         technologyFitAssessments = List.copyOf(technologyFitAssessments);
         clarificationQuestions = List.copyOf(clarificationQuestions);
+        reasoning = Objects.requireNonNull(reasoning, "reasoning");
         if (clarificationQuestions.isEmpty() != (clarificationId == null)) {
             throw new IllegalArgumentException("clarificationId must be present exactly when clarification questions exist");
         }
@@ -56,6 +59,7 @@ public record ProcessAnalysisResponse(
                 understanding.preliminaryAssessment(),
                 understanding.technologyFitAssessments(),
                 clarificationId.map(id -> id.value().toString()).orElse(null),
-                clarificationQuestions);
+                clarificationQuestions,
+                ProcessEffortReasoningResponse.from(ProcessEffortReasoningProjector.project(result)));
     }
 }

@@ -2,7 +2,7 @@ package com.codeworkdigital.api.processanalysis.api;
 
 import com.codeworkdigital.api.processanalysis.application.ProcessEffortClarificationContinuationId;
 import com.codeworkdigital.api.processanalysis.application.ProcessEffortClarificationResolution;
-import com.codeworkdigital.api.processanalysis.application.ProcessEffortMaterialityAssessmentStatus;
+import com.codeworkdigital.api.processanalysis.application.ProcessEffortReasoningProjector;
 import com.codeworkdigital.api.processanalysis.domain.ProcessEffortDurationUnit;
 import com.codeworkdigital.api.processanalysis.domain.ProcessEffortPerReportingPeriodUnit;
 import com.codeworkdigital.api.processanalysis.domain.ProcessQuantityProjection;
@@ -13,15 +13,14 @@ import java.util.Objects;
 public record ProcessEffortClarificationResolutionResponse(
         String clarificationId,
         OperationalBurden operationalBurden,
-        ProcessEffortMaterialityAssessmentStatus materialityOutcome) {
+        ProcessEffortMaterialityOutcomeResponse materialityOutcome,
+        ProcessEffortReasoningResponse reasoning) {
 
     public ProcessEffortClarificationResolutionResponse {
         clarificationId = Objects.requireNonNull(clarificationId, "clarificationId");
         operationalBurden = Objects.requireNonNull(operationalBurden, "operationalBurden");
         materialityOutcome = Objects.requireNonNull(materialityOutcome, "materialityOutcome");
-        if (materialityOutcome == ProcessEffortMaterialityAssessmentStatus.NOT_ESTABLISHED) {
-            throw new IllegalStateException("successful clarification response cannot be not established");
-        }
+        reasoning = Objects.requireNonNull(reasoning, "reasoning");
     }
 
     static ProcessEffortClarificationResolutionResponse from(
@@ -40,7 +39,8 @@ public record ProcessEffortClarificationResolutionResponse(
         return new ProcessEffortClarificationResolutionResponse(
                 clarificationId.value().toString(),
                 new OperationalBurden(burden.magnitude(), "MINUTE_PER_MONTH"),
-                resolution.materialityAssessment().status());
+                ProcessEffortMaterialityOutcomeResponse.from(resolution.materialityAssessment().status()),
+                ProcessEffortReasoningResponse.from(ProcessEffortReasoningProjector.project(resolution)));
     }
 
     public record OperationalBurden(
