@@ -10,6 +10,8 @@ import com.codeworkdigital.api.processanalysis.domain.ProcessEvidenceSource;
 import com.codeworkdigital.api.processanalysis.domain.ProcessQuantityProjection;
 import com.codeworkdigital.api.processanalysis.domain.ProcessReportingPeriodUnit;
 import java.math.BigDecimal;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -18,6 +20,15 @@ class ProcessEffortMaterialityEvidenceGapIdentifierTest {
 
     private final ProcessEffortMaterialityEvidenceGapIdentifier identifier =
             new ProcessEffortMaterialityEvidenceGapIdentifier();
+
+    @Test
+    void productionIdentifierDoesNotRetainDuplicateQuestionKindType() throws Exception {
+        String source = Files.readString(Path.of(
+                "src/main/java/com/codeworkdigital/api/processanalysis/application/"
+                        + "ProcessEffortMaterialityEvidenceGapIdentifier.java"));
+
+        assertThat(source).doesNotContain("QuestionKind");
+    }
 
     @Test
     void absentVolumeOnlyProducesOneVolumeGap() {
@@ -192,6 +203,8 @@ class ProcessEffortMaterialityEvidenceGapIdentifierTest {
         assertThat(second).hasSameSizeAs(first);
         assertThat(second).extracting(ProcessEffortMaterialityEvidenceGap::kind)
                 .containsExactlyElementsOf(first.stream().map(ProcessEffortMaterialityEvidenceGap::kind).toList());
+        assertThat(evidenceGaps(second)).extracting(ProcessEvidenceGap::question)
+                .containsExactlyElementsOf(evidenceGaps(first).stream().map(ProcessEvidenceGap::question).toList());
         assertThat(evidenceGaps(second)).extracting(ProcessEvidenceGap::decisionAffected)
                 .containsExactlyElementsOf(evidenceGaps(first).stream().map(ProcessEvidenceGap::decisionAffected).toList());
     }

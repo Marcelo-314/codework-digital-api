@@ -30,49 +30,40 @@ public class ProcessEffortMaterialityEvidenceGapIdentifier {
 
         List<ProcessEffortMaterialityEvidenceGap> gaps = new ArrayList<>();
         if (effortEvidence.volumePerReportingPeriod().status() == ProcessEffortEvidenceQuantityStatus.ABSENT) {
-            gaps.add(gap(
-                    ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD,
-                    question(QuestionKind.VOLUME, locale)));
+            gaps.add(gap(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD, locale));
         }
         if (effortEvidence.effortPerBusinessItem().status() == ProcessEffortEvidenceQuantityStatus.ABSENT) {
-            gaps.add(gap(
-                    ProcessEffortMaterialityEvidenceGapKind.EFFORT_PER_BUSINESS_ITEM,
-                    question(QuestionKind.EFFORT, locale)));
+            gaps.add(gap(ProcessEffortMaterialityEvidenceGapKind.EFFORT_PER_BUSINESS_ITEM, locale));
         }
         return List.copyOf(gaps);
     }
 
     private static ProcessEffortMaterialityEvidenceGap gap(
             ProcessEffortMaterialityEvidenceGapKind kind,
-            String question) {
+            ProcessAnalysisLocale locale) {
         return new ProcessEffortMaterialityEvidenceGap(
                 kind,
                 new ProcessEvidenceGap(
-                        question,
+                        question(kind, locale),
                         ProcessEvidenceSource.SELF_REPORTED,
                         DECISION_AFFECTED,
                         ProcessAnalysisScope.processWide()));
     }
 
-    private static String question(QuestionKind kind, ProcessAnalysisLocale locale) {
+    private static String question(ProcessEffortMaterialityEvidenceGapKind kind, ProcessAnalysisLocale locale) {
         return switch (locale) {
             case EN -> switch (kind) {
-                case VOLUME -> "What monthly quantity do you use as the reference volume for this process?";
-                case EFFORT -> "How many minutes of effort per processed business item do you use as the reference value?";
+                case VOLUME_PER_REPORTING_PERIOD -> "What monthly quantity do you use as the reference volume for this process?";
+                case EFFORT_PER_BUSINESS_ITEM -> "How many minutes of effort per processed business item do you use as the reference value?";
             };
             case ES -> switch (kind) {
-                case VOLUME -> "Que cantidad mensual usas como volumen de referencia para este proceso?";
-                case EFFORT -> "Cuantos minutos de esfuerzo por item de negocio procesado usas como valor de referencia?";
+                case VOLUME_PER_REPORTING_PERIOD -> "Que cantidad mensual usas como volumen de referencia para este proceso?";
+                case EFFORT_PER_BUSINESS_ITEM -> "Cuantos minutos de esfuerzo por item de negocio procesado usas como valor de referencia?";
             };
             case IT -> switch (kind) {
-                case VOLUME -> "Quale quantita mensile usi come volume di riferimento per questo processo?";
-                case EFFORT -> "Quanti minuti di lavoro per elemento di business processato usi come valore di riferimento?";
+                case VOLUME_PER_REPORTING_PERIOD -> "Quale quantita mensile usi come volume di riferimento per questo processo?";
+                case EFFORT_PER_BUSINESS_ITEM -> "Quanti minuti di lavoro per elemento di business processato usi come valore di riferimento?";
             };
         };
-    }
-
-    private enum QuestionKind {
-        VOLUME,
-        EFFORT
     }
 }
