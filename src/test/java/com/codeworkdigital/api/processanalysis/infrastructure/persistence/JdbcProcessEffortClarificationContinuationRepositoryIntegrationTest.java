@@ -8,6 +8,7 @@ import com.codeworkdigital.api.processanalysis.application.ProcessAnalysisResult
 import com.codeworkdigital.api.processanalysis.application.ProcessAnalysisStatus;
 import com.codeworkdigital.api.processanalysis.application.ProcessEffortClarificationContinuation;
 import com.codeworkdigital.api.processanalysis.application.ProcessEffortClarificationContinuationId;
+import com.codeworkdigital.api.processanalysis.application.ProcessEffortClarificationContinuationIssuer;
 import com.codeworkdigital.api.processanalysis.application.ProcessEffortClarificationContinuationRepository;
 import com.codeworkdigital.api.processanalysis.application.ProcessEffortClarificationContext;
 import com.codeworkdigital.api.processanalysis.application.ProcessEffortEvidence;
@@ -38,6 +39,7 @@ import com.codeworkdigital.api.processanalysis.domain.ProcessQuantityProjection;
 import com.codeworkdigital.api.processanalysis.domain.ProcessReportingPeriodUnit;
 import com.codeworkdigital.api.support.PostgreSqlIntegrationTestSupport;
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -183,6 +185,21 @@ class JdbcProcessEffortClarificationContinuationRepositoryIntegrationTest
     }
 
     @Test
+    void issuerReturnedIdLoadsPersistedContinuation() {
+        ProcessEffortClarificationContinuationIssuer issuer =
+                new ProcessEffortClarificationContinuationIssuer(repository, Clock.fixed(CREATED_AT, ZoneOffset.UTC));
+        ProcessAnalysisResult result = resultWithVolumeGap();
+
+        ProcessEffortClarificationContinuationId id = issuer.issue(result).orElseThrow();
+
+        ProcessEffortClarificationContinuation found = repository.findById(id).orElseThrow();
+        assertThat(found.id()).isEqualTo(id);
+        assertThat(found.createdAt()).isEqualTo(CREATED_AT);
+        assertThat(found.expiresAt()).isEqualTo(EXPIRES_AT);
+        assertThat(found.context()).isEqualTo(ProcessEffortClarificationContext.from(result));
+    }
+
+    @Test
     void businessItemRefRemainsOnlyInsideContextPayload() {
         repository.save(continuation(contextWithBothGaps(), CREATED_AT, EXPIRES_AT));
 
@@ -269,7 +286,7 @@ class JdbcProcessEffortClarificationContinuationRepositoryIntegrationTest
                         + "JdbcProcessEffortClarificationContinuationRepository.java"));
 
         assertThat(controller + request + response + question)
-                .doesNotContain("analysisId", "ProcessEffortClarificationContinuation");
+                .doesNotContain("analysisId", "ProcessEffortClarificationContinuationRepository");
         assertThat(service).doesNotContain("ProcessEffortClarificationContinuationRepository");
         assertThat(service.split("modelClient\\.analyze\\(", -1).length - 1).isEqualTo(1);
         assertThat(resolver).doesNotContain("ProcessEffortClarificationContinuation", "Repository", "DerivationVerifier");
@@ -364,7 +381,11 @@ class JdbcProcessEffortClarificationContinuationRepositoryIntegrationTest
     }
 
     private ProcessEffortClarificationContext contextWithVolumeGap() {
-        return context(
+        return ProcessEffortClarificationContext.from(resultWithVolumeGap());
+    }
+
+    private ProcessAnalysisResult resultWithVolumeGap() {
+        return result(
                 new ProcessEffortEvidence(
                         absent("ticket-ref", "ticket"),
                         exactEffort("2", "ticket-ref", "ticket")),
@@ -400,12 +421,24 @@ class JdbcProcessEffortClarificationContinuationRepositoryIntegrationTest
     private ProcessEffortClarificationContext context(
             ProcessEffortEvidence evidence,
             List<ProcessEffortMaterialityEvidenceGap> gaps) {
+        return ProcessEffortClarificationContext.from(result(evidence, gaps));
+    }
+
+    private ProcessAnalysisResult result(
+            ProcessEffortEvidence evidence,
+            List<ProcessEffortMaterialityEvidenceGap> gaps) {
         ProcessAnalysisResult mapped = sourceMapper.map(new ProcessAnalysisModelResult(understanding(), evidence));
-        return new ProcessEffortClarificationContext(
+        return new ProcessAnalysisResult(
+                mapped.understanding(),
                 mapped.effortEvidence(),
+                mapped.volumeProjection(),
+                mapped.effortProjection(),
                 mapped.sourceKnowledge(),
-                ProcessEffortMaterialityAssessment.notEstablished(ProcessEffortMaterialityThreshold.P06_LAB_POLICY),
-                gaps);
+                Optional.empty(),
+                Optional.of(ProcessEffortMaterialityAssessment.notEstablished(
+                        ProcessEffortMaterialityThreshold.P06_LAB_POLICY)),
+                gaps,
+                mapped.composable());
     }
 
     private ProcessEffortMaterialityEvidenceGap gap(

@@ -153,8 +153,7 @@ class ProcessEffortClarificationContinuationTest {
         assertThat(controller + request + response + question)
                 .doesNotContain(
                         "ProcessEffortClarificationContext",
-                        "ProcessEffortClarificationContinuation",
-                        "ProcessEffortClarificationContinuationId",
+                        "ProcessEffortClarificationContinuationRepository",
                         "analysisId",
                         "businessItemRef",
                         "businessItemLabel",
@@ -196,19 +195,26 @@ class ProcessEffortClarificationContinuationTest {
     }
 
     @Test
-    void continuationPersistenceIsNotWiredIntoCurrentHttpOrApplicationFlow() throws Exception {
+    void continuationPersistenceIsWiredOnlyThroughIssuerInCurrentHttpFlow() throws Exception {
         String controller = Files.readString(Path.of(
                 "src/main/java/com/codeworkdigital/api/processanalysis/api/ProcessAnalysisController.java"));
         String applicationService = Files.readString(Path.of(
                 "src/main/java/com/codeworkdigital/api/processanalysis/application/ProcessAnalysisApplicationService.java"));
+        String issuer = Files.readString(Path.of(
+                "src/main/java/com/codeworkdigital/api/processanalysis/application/"
+                        + "ProcessEffortClarificationContinuationIssuer.java"));
 
-        assertThat(controller).doesNotContain(
-                "ProcessEffortClarificationContinuation",
-                "ProcessEffortClarificationContinuationRepository",
-                "analysisId");
+        assertThat(controller)
+                .contains("ProcessEffortClarificationContinuationIssuer", "continuationIssuer.issue(result)")
+                .doesNotContain(
+                        "ProcessEffortClarificationContinuationRepository",
+                        "analysisId");
         assertThat(applicationService).doesNotContain(
                 "ProcessEffortClarificationContinuation",
                 "ProcessEffortClarificationContinuationRepository");
+        assertThat(issuer)
+                .contains("repository.save(continuation)")
+                .doesNotContain("findById(", "ProcessEffortClarificationResolver");
     }
 
     @Test

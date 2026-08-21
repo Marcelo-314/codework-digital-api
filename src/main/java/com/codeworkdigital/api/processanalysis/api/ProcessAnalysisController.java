@@ -4,7 +4,10 @@ import com.codeworkdigital.api.processanalysis.application.AnalyzeProcessDescrip
 import com.codeworkdigital.api.processanalysis.application.ProcessAnalysisApplicationService;
 import com.codeworkdigital.api.processanalysis.application.ProcessAnalysisLocale;
 import com.codeworkdigital.api.processanalysis.application.ProcessAnalysisResult;
+import com.codeworkdigital.api.processanalysis.application.ProcessEffortClarificationContinuationId;
+import com.codeworkdigital.api.processanalysis.application.ProcessEffortClarificationContinuationIssuer;
 import jakarta.validation.Valid;
+import java.util.Optional;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -17,9 +20,13 @@ import org.springframework.web.bind.annotation.RestController;
 public class ProcessAnalysisController {
 
     private final ProcessAnalysisApplicationService applicationService;
+    private final ProcessEffortClarificationContinuationIssuer continuationIssuer;
 
-    public ProcessAnalysisController(ProcessAnalysisApplicationService applicationService) {
+    public ProcessAnalysisController(
+            ProcessAnalysisApplicationService applicationService,
+            ProcessEffortClarificationContinuationIssuer continuationIssuer) {
         this.applicationService = applicationService;
+        this.continuationIssuer = continuationIssuer;
     }
 
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
@@ -27,7 +34,8 @@ public class ProcessAnalysisController {
         ProcessAnalysisResult result = applicationService.analyze(new AnalyzeProcessDescriptionCommand(
                 normalize(request.description()),
                 mapLocale(normalize(request.locale()))));
-        return ResponseEntity.ok(ProcessAnalysisResponse.from(result));
+        Optional<ProcessEffortClarificationContinuationId> clarificationId = continuationIssuer.issue(result);
+        return ResponseEntity.ok(ProcessAnalysisResponse.from(result, clarificationId));
     }
 
     private String normalize(String value) {

@@ -9,6 +9,10 @@ import com.codeworkdigital.api.processanalysis.application.ProcessAnalysisModelC
 import com.codeworkdigital.api.processanalysis.application.ProcessAnalysisModelResult;
 import com.codeworkdigital.api.processanalysis.application.ProcessAnalysisUnavailableException;
 import com.codeworkdigital.api.processanalysis.application.ProcessAnalysisStatus;
+import com.codeworkdigital.api.processanalysis.application.ProcessEffortClarificationContinuation;
+import com.codeworkdigital.api.processanalysis.application.ProcessEffortClarificationContinuationId;
+import com.codeworkdigital.api.processanalysis.application.ProcessEffortClarificationContinuationIssuer;
+import com.codeworkdigital.api.processanalysis.application.ProcessEffortClarificationContinuationRepository;
 import com.codeworkdigital.api.processanalysis.application.ProcessEffortEvidence;
 import com.codeworkdigital.api.processanalysis.application.ProcessEffortEvidenceProjectionMapper;
 import com.codeworkdigital.api.processanalysis.application.ProcessEffortEvidenceQuantity;
@@ -32,8 +36,14 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -74,9 +84,13 @@ class ProcessAnalysisApiIntegrationTest {
     @Autowired
     private FakeProcessAnalysisModelClient processAnalysisModelClient;
 
+    @Autowired
+    private RecordingProcessEffortClarificationContinuationRepository continuationRepository;
+
     @BeforeEach
     void resetFakeClient() {
         processAnalysisModelClient.reset();
+        continuationRepository.reset();
     }
 
     @Test
@@ -99,6 +113,7 @@ class ProcessAnalysisApiIntegrationTest {
         assertThat((List<?>) body.get("observations")).isNotEmpty();
         assertThat((List<?>) body.get("stages")).hasSize(2);
         assertThat((List<?>) body.get("technologyFitAssessments")).hasSize(2);
+        assertThat(body.get("clarificationId")).isNull();
         assertThat((List<?>) body.get("clarificationQuestions")).isEmpty();
         assertThat(body).doesNotContainKey("understanding");
         assertThat(body.keySet()).containsExactlyInAnyOrder(
@@ -110,6 +125,7 @@ class ProcessAnalysisApiIntegrationTest {
                 "stages",
                 "preliminaryAssessment",
                 "technologyFitAssessments",
+                "clarificationId",
                 "clarificationQuestions");
         assertThat(body).doesNotContainKeys(
                 "effortEvidence",
@@ -148,6 +164,7 @@ class ProcessAnalysisApiIntegrationTest {
                 "businessItemLabel",
                 "composable");
         assertThat(processAnalysisModelClient.invocations).isEqualTo(1);
+        assertThat(continuationRepository.saved).isEmpty();
         assertThat(processAnalysisModelClient.lastCommand.description())
                 .isEqualTo("Recibimos pedidos por WhatsApp, verificamos stock y confirmamos entrega.");
         assertThat(response.body()).doesNotContain(
@@ -183,10 +200,25 @@ class ProcessAnalysisApiIntegrationTest {
                 Map.of(
                         "code", "VOLUME_PER_REPORTING_PERIOD",
                         "question", "What monthly quantity do you use as the reference volume for this process?"));
+        assertNonNullClarificationId(body);
+        assertThat(continuationRepository.saved).hasSize(1);
         assertThat(body).containsKey("validationQuestions");
         assertThat(body).doesNotContainKey("understanding");
         assertNoInternalAnalysisFieldsLeak(body);
         assertNoInternalAnalysisTextLeaks(lastResponseBody);
+        assertThat(processAnalysisModelClient.invocations).isEqualTo(1);
+    }
+
+    @Test
+    void continuationPersistenceFailureFailsRequestClosed() throws Exception {
+        processAnalysisModelClient.mode = FakeProcessAnalysisModelClient.Mode.VOLUME_ABSENT;
+        continuationRepository.failure = new IllegalStateException("simulated continuation persistence failure");
+
+        HttpResponse<String> response = postWithLocale("EN");
+
+        assertThat(response.statusCode()).isGreaterThanOrEqualTo(300);
+        assertThat(response.body()).doesNotContain("clarificationQuestions", "clarificationId");
+        assertThat(continuationRepository.saved).isEmpty();
         assertThat(processAnalysisModelClient.invocations).isEqualTo(1);
     }
 
@@ -200,6 +232,8 @@ class ProcessAnalysisApiIntegrationTest {
                 Map.of(
                         "code", "EFFORT_PER_BUSINESS_ITEM",
                         "question", "How many minutes of effort per processed business item do you use as the reference value?"));
+        assertNonNullClarificationId(body);
+        assertThat(continuationRepository.saved).hasSize(1);
         assertNoInternalAnalysisFieldsLeak(body);
         assertThat(processAnalysisModelClient.invocations).isEqualTo(1);
     }
@@ -217,6 +251,8 @@ class ProcessAnalysisApiIntegrationTest {
                 Map.of(
                         "code", "EFFORT_PER_BUSINESS_ITEM",
                         "question", "How many minutes of effort per processed business item do you use as the reference value?"));
+        assertNonNullClarificationId(body);
+        assertThat(continuationRepository.saved).hasSize(1);
         assertThat(processAnalysisModelClient.invocations).isEqualTo(1);
     }
 
@@ -249,6 +285,10 @@ class ProcessAnalysisApiIntegrationTest {
                 Map.of(
                         "code", "EFFORT_PER_BUSINESS_ITEM",
                         "question", "How many minutes of effort per processed business item do you use as the reference value?"));
+        assertNonNullClarificationId(spanish);
+        assertNonNullClarificationId(italian);
+        assertNonNullClarificationId(english);
+        assertThat(continuationRepository.saved).hasSize(3);
         assertThat(processAnalysisModelClient.invocations).isEqualTo(3);
     }
 
@@ -259,6 +299,8 @@ class ProcessAnalysisApiIntegrationTest {
         Map<String, Object> body = json(postWithLocale("EN"));
 
         assertThat(body.get("clarificationQuestions")).isEqualTo(List.of());
+        assertThat(body.get("clarificationId")).isNull();
+        assertThat(continuationRepository.saved).isEmpty();
         assertThat(processAnalysisModelClient.invocations).isEqualTo(1);
     }
 
@@ -274,8 +316,10 @@ class ProcessAnalysisApiIntegrationTest {
             Map<String, Object> body = json(postWithLocale("EN"));
 
             assertThat(body.get("clarificationQuestions")).isEqualTo(List.of());
+            assertThat(body.get("clarificationId")).isNull();
             assertNoInternalAnalysisFieldsLeak(body);
         }
+        assertThat(continuationRepository.saved).isEmpty();
         assertThat(processAnalysisModelClient.invocations).isEqualTo(4);
     }
 
@@ -294,6 +338,7 @@ class ProcessAnalysisApiIntegrationTest {
                 "stages",
                 "preliminaryAssessment",
                 "technologyFitAssessments",
+                "clarificationId",
                 "clarificationQuestions");
         assertClarificationQuestions(body,
                 Map.of(
@@ -302,6 +347,17 @@ class ProcessAnalysisApiIntegrationTest {
                 Map.of(
                         "code", "EFFORT_PER_BUSINESS_ITEM",
                         "question", "How many minutes of effort per processed business item do you use as the reference value?"));
+        String clarificationId = assertNonNullClarificationId(body);
+        assertThat(clarificationId).isNotEqualTo("item-1");
+        assertThat(lastResponseBody).doesNotContain(
+                "businessItemRef",
+                "businessItemLabel",
+                "context",
+                "createdAt",
+                "expiresAt",
+                "sourceKnowledge",
+                "materialityAssessment",
+                "item-1");
         assertThat(processAnalysisModelClient.invocations).isEqualTo(1);
     }
 
@@ -369,7 +425,9 @@ class ProcessAnalysisApiIntegrationTest {
         assertThat((List<?>) body.get("stages")).isEmpty();
         assertThat(body.get("preliminaryAssessment")).isEqualTo("");
         assertThat((List<?>) body.get("technologyFitAssessments")).isEmpty();
+        assertThat(body.get("clarificationId")).isNull();
         assertThat(body.get("clarificationQuestions")).isEqualTo(List.of());
+        assertThat(continuationRepository.saved).isEmpty();
         assertThat(processAnalysisModelClient.invocations).isEqualTo(1);
     }
 
@@ -390,9 +448,11 @@ class ProcessAnalysisApiIntegrationTest {
         assertThat(body).doesNotContainKey("processIdentified");
         assertThat((List<?>) body.get("stages")).isEmpty();
         assertThat((List<?>) body.get("technologyFitAssessments")).isEmpty();
+        assertThat(body.get("clarificationId")).isNull();
         assertThat(body.get("clarificationQuestions")).isEqualTo(List.of());
         assertThat(body.get("preliminaryAssessment")).isEqualTo("");
         assertThat(response.body()).doesNotContain("irrational", "proof", "theorem");
+        assertThat(continuationRepository.saved).isEmpty();
         assertThat(processAnalysisModelClient.invocations).isEqualTo(1);
     }
 
@@ -522,6 +582,7 @@ class ProcessAnalysisApiIntegrationTest {
         assertThat(body.get("clarificationQuestions")).isInstanceOf(List.class);
         List<?> questions = (List<?>) body.get("clarificationQuestions");
         assertThat(questions).hasSize(expectedQuestions.length);
+        assertThat(body.get("clarificationId") == null).isEqualTo(questions.isEmpty());
         for (int index = 0; index < expectedQuestions.length; index++) {
             assertThat(questions.get(index)).isInstanceOf(Map.class);
             Map<?, ?> question = (Map<?, ?>) questions.get(index);
@@ -530,6 +591,13 @@ class ProcessAnalysisApiIntegrationTest {
             assertThat(question.get("code")).isEqualTo(expectedQuestions[index].get("code"));
             assertThat(question.get("question")).isEqualTo(expectedQuestions[index].get("question"));
         }
+    }
+
+    private String assertNonNullClarificationId(Map<String, Object> body) {
+        assertThat(body.get("clarificationId")).isInstanceOf(String.class);
+        String clarificationId = (String) body.get("clarificationId");
+        assertThat(UUID.fromString(clarificationId).toString()).isEqualTo(clarificationId);
+        return clarificationId;
     }
 
     private void assertNoInternalAnalysisFieldsLeak(Map<String, Object> body) {
@@ -552,6 +620,9 @@ class ProcessAnalysisApiIntegrationTest {
                 "computableProjection",
                 "businessItemRef",
                 "businessItemLabel",
+                "createdAt",
+                "expiresAt",
+                "context",
                 "clarificationAnswers",
                 "answer",
                 "value",
@@ -586,6 +657,9 @@ class ProcessAnalysisApiIntegrationTest {
                 "computableProjection",
                 "businessItemRef",
                 "businessItemLabel",
+                "createdAt",
+                "expiresAt",
+                "context",
                 "clarificationAnswers",
                 "numericValue",
                 "conversationId",
@@ -650,6 +724,7 @@ class ProcessAnalysisApiIntegrationTest {
     @Import({
             ProcessAnalysisController.class,
             ProcessAnalysisApplicationService.class,
+            ProcessEffortClarificationContinuationIssuer.class,
             TechnologyFitAssessmentEvaluator.class,
             ApiSecurityConfiguration.class,
             ApiCorsConfiguration.class,
@@ -670,6 +745,44 @@ class ProcessAnalysisApiIntegrationTest {
         @Bean
         FakeProcessAnalysisModelClient fakeProcessAnalysisModelClient() {
             return new FakeProcessAnalysisModelClient();
+        }
+
+        @Bean
+        RecordingProcessEffortClarificationContinuationRepository recordingContinuationRepository() {
+            return new RecordingProcessEffortClarificationContinuationRepository();
+        }
+
+        @Bean
+        Clock clock() {
+            return Clock.fixed(Instant.parse("2026-08-21T12:00:00Z"), ZoneOffset.UTC);
+        }
+    }
+
+    static class RecordingProcessEffortClarificationContinuationRepository
+            implements ProcessEffortClarificationContinuationRepository {
+
+        private final List<ProcessEffortClarificationContinuation> saved = new ArrayList<>();
+        private RuntimeException failure;
+
+        @Override
+        public void save(ProcessEffortClarificationContinuation continuation) {
+            if (failure != null) {
+                throw failure;
+            }
+            saved.add(continuation);
+        }
+
+        @Override
+        public Optional<ProcessEffortClarificationContinuation> findById(
+                ProcessEffortClarificationContinuationId id) {
+            return saved.stream()
+                    .filter(continuation -> continuation.id().equals(id))
+                    .findFirst();
+        }
+
+        void reset() {
+            saved.clear();
+            failure = null;
         }
     }
 
