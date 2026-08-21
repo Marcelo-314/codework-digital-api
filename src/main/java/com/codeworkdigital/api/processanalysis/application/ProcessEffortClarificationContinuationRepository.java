@@ -10,6 +10,8 @@ public interface ProcessEffortClarificationContinuationRepository {
     Optional<ProcessEffortClarificationContinuation> findById(
             ProcessEffortClarificationContinuationId id);
 
+    int deleteExpiredAtOrBefore(Instant cutoff);
+
     boolean markResolvedIfActive(
             ProcessEffortClarificationContinuationId id,
             Instant resolvedAt);

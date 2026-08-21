@@ -84,6 +84,17 @@ public class JdbcProcessEffortClarificationContinuationRepository
     }
 
     @Override
+    public int deleteExpiredAtOrBefore(Instant cutoff) {
+        Objects.requireNonNull(cutoff, "cutoff");
+        return jdbcClient.sql("""
+                        DELETE FROM process_effort_clarification_continuation
+                        WHERE expires_at <= :cutoff
+                        """)
+                .param("cutoff", OffsetDateTime.ofInstant(cutoff, ZoneOffset.UTC))
+                .update();
+    }
+
+    @Override
     public boolean markResolvedIfActive(
             ProcessEffortClarificationContinuationId id,
             Instant resolvedAt) {

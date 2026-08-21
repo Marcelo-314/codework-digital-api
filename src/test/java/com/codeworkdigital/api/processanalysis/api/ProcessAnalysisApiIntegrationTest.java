@@ -1197,6 +1197,13 @@ class ProcessAnalysisApiIntegrationTest {
         }
 
         @Override
+        public int deleteExpiredAtOrBefore(Instant cutoff) {
+            int before = saved.size();
+            saved.removeIf(continuation -> !continuation.expiresAt().isAfter(cutoff));
+            return before - saved.size();
+        }
+
+        @Override
         public boolean markResolvedIfActive(
                 ProcessEffortClarificationContinuationId id,
                 Instant resolvedAt) {

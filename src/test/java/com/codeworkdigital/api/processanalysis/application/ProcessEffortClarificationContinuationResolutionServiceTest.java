@@ -401,6 +401,11 @@ class ProcessEffortClarificationContinuationResolutionServiceTest {
         }
 
         @Override
+        public int deleteExpiredAtOrBefore(Instant cutoff) {
+            throw new UnsupportedOperationException("resolution service does not delete continuations");
+        }
+
+        @Override
         public boolean markResolvedIfActive(
                 ProcessEffortClarificationContinuationId id,
                 Instant resolvedAt) {

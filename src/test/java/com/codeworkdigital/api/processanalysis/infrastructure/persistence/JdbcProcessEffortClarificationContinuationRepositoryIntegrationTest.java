@@ -86,9 +86,16 @@ class JdbcProcessEffortClarificationContinuationRepositoryIntegrationTest
         assertThat(toRegClass("public.contact_submission")).isEqualTo("contact_submission");
         assertThat(toRegClass("public.process_effort_clarification_continuation"))
                 .isEqualTo("process_effort_clarification_continuation");
-        assertThat(successfulMigrationVersions()).containsExactly("1", "2", "3");
+        assertThat(successfulMigrationVersions()).containsExactly("1", "2", "3", "4");
         assertThat(primaryKeyColumns()).containsExactly("id");
         assertThat(tableColumns()).contains("resolved_at");
+        assertThat(indexColumns("idx_pecc_expires_at")).containsExactly("expires_at");
+        assertThat(tableConstraints())
+                .contains(
+                        "pk_pecc",
+                        "ck_pecc_schema_version",
+                        "ck_pecc_expires_after_created",
+                        "ck_pecc_resolved_within_active_lifetime");
     }
 
     @Test
@@ -318,6 +325,51 @@ class JdbcProcessEffortClarificationContinuationRepositoryIntegrationTest
     }
 
     @Test
+    void deleteExpiredAtOrBeforeDeletesOnlyRowsWhoseContinuationLifetimeEnded() {
+        Instant cutoff = EXPIRES_AT;
+        ProcessEffortClarificationContinuation activeUnresolved =
+                continuation(contextWithVolumeGap(), CREATED_AT, cutoff.plusSeconds(1));
+        ProcessEffortClarificationContinuation exactCutoff =
+                continuation(contextWithVolumeGap(), CREATED_AT, cutoff);
+        ProcessEffortClarificationContinuation beforeCutoff =
+                continuation(contextWithVolumeGap(), CREATED_AT, cutoff.minusMillis(1));
+        ProcessEffortClarificationContinuation expiredUnresolved =
+                continuation(contextWithVolumeGap(), CREATED_AT, cutoff.minusSeconds(60));
+        ProcessEffortClarificationContinuation resolvedAfterCutoff =
+                continuation(contextWithVolumeGap(), CREATED_AT, cutoff.plusSeconds(60));
+        ProcessEffortClarificationContinuation resolvedAtCutoff =
+                continuation(contextWithVolumeGap(), CREATED_AT, cutoff);
+
+        repository.save(activeUnresolved);
+        repository.save(exactCutoff);
+        repository.save(beforeCutoff);
+        repository.save(expiredUnresolved);
+        repository.save(resolvedAfterCutoff);
+        repository.save(resolvedAtCutoff);
+        assertThat(repository.markResolvedIfActive(
+                        resolvedAfterCutoff.id(),
+                        cutoff.minusSeconds(1)))
+                .isTrue();
+        assertThat(repository.markResolvedIfActive(
+                        resolvedAtCutoff.id(),
+                        cutoff.minusSeconds(1)))
+                .isTrue();
+
+        assertThat(repository.deleteExpiredAtOrBefore(cutoff)).isEqualTo(4);
+
+        assertThat(repository.findById(activeUnresolved.id())).contains(activeUnresolved);
+        ProcessEffortClarificationContinuation retainedResolved =
+                repository.findById(resolvedAfterCutoff.id()).orElseThrow();
+        assertThat(retainedResolved.expiresAt()).isEqualTo(cutoff.plusSeconds(60));
+        assertThat(retainedResolved.resolvedAt()).contains(cutoff.minusSeconds(1));
+        assertThat(repository.findById(exactCutoff.id())).isEmpty();
+        assertThat(repository.findById(beforeCutoff.id())).isEmpty();
+        assertThat(repository.findById(expiredUnresolved.id())).isEmpty();
+        assertThat(repository.findById(resolvedAtCutoff.id())).isEmpty();
+        assertThat(rowCount()).isEqualTo(2);
+    }
+
+    @Test
     void issuerReturnedIdLoadsPersistedContinuation() {
         ProcessEffortClarificationContinuationIssuer issuer =
                 new ProcessEffortClarificationContinuationIssuer(repository, Clock.fixed(CREATED_AT, ZoneOffset.UTC));
@@ -426,7 +478,12 @@ class JdbcProcessEffortClarificationContinuationRepositoryIntegrationTest
         assertThat(service.split("modelClient\\.analyze\\(", -1).length - 1).isEqualTo(1);
         assertThat(resolver).doesNotContain("ProcessEffortClarificationContinuation", "Repository", "DerivationVerifier");
         assertThat(materializer.split("\\.multiply\\(", -1).length - 1).isEqualTo(1);
-        assertThat(repositorySource).doesNotContain("DELETE", "@Scheduled", "cleanup");
+        assertThat(repositorySource).doesNotContain("@Scheduled", "cleanup", "synchronized", "ReentrantLock");
+        assertThat(repositorySource.split("DELETE FROM process_effort_clarification_continuation", -1).length - 1)
+                .isEqualTo(1);
+        assertThat(repositorySource)
+                .contains("WHERE expires_at <= :cutoff")
+                .doesNotContain("NOW()");
         assertThat(repositorySource.split("UPDATE process_effort_clarification_continuation", -1).length - 1)
                 .isEqualTo(1);
         assertThat(repositorySource)
@@ -777,6 +834,35 @@ class JdbcProcessEffortClarificationContinuationRepositoryIntegrationTest
                         WHERE i.indrelid = 'process_effort_clarification_continuation'::regclass
                           AND i.indisprimary
                         ORDER BY array_position(i.indkey, a.attnum)
+                        """)
+                .query(String.class)
+                .list();
+    }
+
+    private List<String> indexColumns(String indexName) {
+        return jdbcClient.sql("""
+                        SELECT a.attname
+                        FROM pg_index i
+                        JOIN pg_class idx
+                          ON idx.oid = i.indexrelid
+                        JOIN pg_attribute a
+                          ON a.attrelid = i.indrelid
+                         AND a.attnum = ANY(i.indkey)
+                        WHERE idx.relname = :index_name
+                        ORDER BY array_position(i.indkey, a.attnum)
+                        """)
+                .param("index_name", indexName)
+                .query(String.class)
+                .list();
+    }
+
+    private List<String> tableConstraints() {
+        return jdbcClient.sql("""
+                        SELECT constraint_name
+                        FROM information_schema.table_constraints
+                        WHERE table_schema = 'public'
+                          AND table_name = 'process_effort_clarification_continuation'
+                        ORDER BY constraint_name
                         """)
                 .query(String.class)
                 .list();

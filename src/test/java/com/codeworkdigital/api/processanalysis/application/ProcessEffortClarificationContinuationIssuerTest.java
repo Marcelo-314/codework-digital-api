@@ -309,6 +309,11 @@ class ProcessEffortClarificationContinuationIssuerTest {
         }
 
         @Override
+        public int deleteExpiredAtOrBefore(Instant cutoff) {
+            throw new UnsupportedOperationException("issuer does not delete continuations");
+        }
+
+        @Override
         public boolean markResolvedIfActive(
                 ProcessEffortClarificationContinuationId id,
                 Instant resolvedAt) {

@@ -239,7 +239,11 @@ class ProcessEffortClarificationContinuationTest {
         assertThat(Arrays.stream(ProcessEffortClarificationContinuationRepository.class.getDeclaredMethods())
                         .map(method -> method.getName())
                         .toList())
-                .containsExactlyInAnyOrder("save", "findById", "markResolvedIfActive");
+                .containsExactlyInAnyOrder(
+                        "save",
+                        "findById",
+                        "deleteExpiredAtOrBefore",
+                        "markResolvedIfActive");
 
         assertThat(parameterTypes("save"))
                 .containsExactly(ProcessEffortClarificationContinuation.class);
@@ -249,6 +253,9 @@ class ProcessEffortClarificationContinuationTest {
         assertThat(returnType("findById")).isEqualTo(Optional.class);
         assertThat(optionalReturnTypeArgument("findById"))
                 .isEqualTo(ProcessEffortClarificationContinuation.class);
+        assertThat(parameterTypes("deleteExpiredAtOrBefore"))
+                .containsExactly(Instant.class);
+        assertThat(returnType("deleteExpiredAtOrBefore")).isEqualTo(int.class);
         assertThat(parameterTypes("markResolvedIfActive"))
                 .containsExactly(ProcessEffortClarificationContinuationId.class, Instant.class);
         assertThat(returnType("markResolvedIfActive")).isEqualTo(boolean.class);
