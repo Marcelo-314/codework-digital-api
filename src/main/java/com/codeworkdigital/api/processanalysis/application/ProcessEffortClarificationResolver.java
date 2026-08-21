@@ -33,22 +33,21 @@ public class ProcessEffortClarificationResolver {
     }
 
     public ProcessEffortClarificationResolution resolve(
-            ProcessAnalysisResult baseline,
+            ProcessEffortClarificationContext context,
             List<ProcessEffortMaterialityClarificationAnswer> answers) {
-        Objects.requireNonNull(baseline, "baseline");
+        Objects.requireNonNull(context, "context");
         Objects.requireNonNull(answers, "answers");
 
-        requireEligibleBaseline(baseline);
-        requireCompleteAnswerSet(baseline.materialityEvidenceGaps(), answers);
+        requireCompleteAnswerSet(context.actionableGaps(), answers);
 
         ProcessEffortClarificationKnowledge clarificationKnowledge = clarificationAnswerMaterializer.materialize(
-                baseline.materialityEvidenceGaps(),
-                baseline.effortEvidence(),
+                context.actionableGaps(),
+                context.effortEvidence(),
                 answers);
-        requireClarificationKnowledgeForAllGaps(baseline.materialityEvidenceGaps(), clarificationKnowledge);
+        requireClarificationKnowledgeForAllGaps(context.actionableGaps(), clarificationKnowledge);
 
         ProcessEffortEstablishedKnowledge establishedKnowledge = establishedKnowledgeComposer.compose(
-                baseline.sourceKnowledge(),
+                context.sourceKnowledge(),
                 clarificationKnowledge);
         ProcessEffortDerivedResult derivedResult = effortPerReportingPeriodMaterializer.materialize(establishedKnowledge)
                 .orElseThrow(() -> new IllegalStateException(
@@ -65,20 +64,6 @@ public class ProcessEffortClarificationResolver {
                 establishedKnowledge,
                 derivedResult,
                 materialityAssessment);
-    }
-
-    private static void requireEligibleBaseline(ProcessAnalysisResult baseline) {
-        if (!baseline.understanding().isProcessIdentified()) {
-            throw new IllegalArgumentException("baseline must identify a process");
-        }
-        ProcessEffortMaterialityAssessment assessment = baseline.materialityAssessment()
-                .orElseThrow(() -> new IllegalArgumentException("baseline materiality assessment is required"));
-        if (assessment.status() != ProcessEffortMaterialityAssessmentStatus.NOT_ESTABLISHED) {
-            throw new IllegalArgumentException("baseline materiality assessment must be not established");
-        }
-        if (baseline.materialityEvidenceGaps().isEmpty()) {
-            throw new IllegalArgumentException("baseline must have actionable materiality evidence gaps");
-        }
     }
 
     private static void requireCompleteAnswerSet(

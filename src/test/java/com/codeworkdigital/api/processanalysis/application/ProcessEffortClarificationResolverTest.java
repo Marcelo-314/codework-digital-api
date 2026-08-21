@@ -19,6 +19,7 @@ import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -36,8 +37,8 @@ class ProcessEffortClarificationResolverTest {
     @Test
     void volumeOnlyCompleteResolutionProducesEightThousandAndOpportunity() {
         ProcessEffortClarificationResolution resolution = resolver.resolve(
-                baseline(evidence(absent("ticket", "ticket"), exactEffort("2", "ticket", "ticket")),
-                        gap(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD)),
+                context(baseline(evidence(absent("ticket", "ticket"), exactEffort("2", "ticket", "ticket")),
+                        gap(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD))),
                 List.of(answer(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD, "4000")));
 
         assertThat(quantity(resolution.derivedResult()).magnitude()).isEqualByComparingTo("8000");
@@ -54,8 +55,8 @@ class ProcessEffortClarificationResolverTest {
     @Test
     void effortOnlyCompleteResolutionProducesEightThousandAndOpportunity() {
         ProcessEffortClarificationResolution resolution = resolver.resolve(
-                baseline(evidence(exactVolume("4000", "ticket", "ticket"), absent("ticket", "ticket")),
-                        gap(ProcessEffortMaterialityEvidenceGapKind.EFFORT_PER_BUSINESS_ITEM)),
+                context(baseline(evidence(exactVolume("4000", "ticket", "ticket"), absent("ticket", "ticket")),
+                        gap(ProcessEffortMaterialityEvidenceGapKind.EFFORT_PER_BUSINESS_ITEM))),
                 List.of(answer(ProcessEffortMaterialityEvidenceGapKind.EFFORT_PER_BUSINESS_ITEM, "2")));
 
         assertThat(quantity(resolution.derivedResult()).magnitude()).isEqualByComparingTo("8000");
@@ -66,9 +67,9 @@ class ProcessEffortClarificationResolverTest {
     @Test
     void bothGapsCompleteResolutionProducesEightThousandAndOpportunity() {
         ProcessEffortClarificationResolution resolution = resolver.resolve(
-                baseline(evidence(absent("ticket", "ticket"), absent("ticket", "ticket")),
+                context(baseline(evidence(absent("ticket", "ticket"), absent("ticket", "ticket")),
                         gap(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD),
-                        gap(ProcessEffortMaterialityEvidenceGapKind.EFFORT_PER_BUSINESS_ITEM)),
+                        gap(ProcessEffortMaterialityEvidenceGapKind.EFFORT_PER_BUSINESS_ITEM))),
                 List.of(
                         answer(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD, "4000"),
                         answer(ProcessEffortMaterialityEvidenceGapKind.EFFORT_PER_BUSINESS_ITEM, "2")));
@@ -81,8 +82,8 @@ class ProcessEffortClarificationResolverTest {
     @Test
     void belowThresholdResolutionDoesNotIdentifyMaterialJustification() {
         ProcessEffortClarificationResolution resolution = resolver.resolve(
-                baseline(evidence(absent("ticket", "ticket"), exactEffort("2", "ticket", "ticket")),
-                        gap(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD)),
+                context(baseline(evidence(absent("ticket", "ticket"), exactEffort("2", "ticket", "ticket")),
+                        gap(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD))),
                 List.of(answer(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD, "4")));
 
         assertThat(quantity(resolution.derivedResult()).magnitude()).isEqualByComparingTo("8");
@@ -93,8 +94,8 @@ class ProcessEffortClarificationResolverTest {
     @Test
     void exactThresholdResolutionIdentifiesOpportunity() {
         ProcessEffortClarificationResolution resolution = resolver.resolve(
-                baseline(evidence(absent("ticket", "ticket"), exactEffort("2", "ticket", "ticket")),
-                        gap(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD)),
+                context(baseline(evidence(absent("ticket", "ticket"), exactEffort("2", "ticket", "ticket")),
+                        gap(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD))),
                 List.of(answer(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD, "1200")));
 
         assertThat(quantity(resolution.derivedResult()).magnitude()).isEqualByComparingTo("2400");
@@ -105,8 +106,8 @@ class ProcessEffortClarificationResolverTest {
     @Test
     void zeroResolutionRemainsValidAndNotMaterial() {
         ProcessEffortClarificationResolution resolution = resolver.resolve(
-                baseline(evidence(absent("ticket", "ticket"), exactEffort("2", "ticket", "ticket")),
-                        gap(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD)),
+                context(baseline(evidence(absent("ticket", "ticket"), exactEffort("2", "ticket", "ticket")),
+                        gap(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD))),
                 List.of(answer(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD, "0")));
 
         assertThat(quantity(resolution.derivedResult()).magnitude()).isEqualByComparingTo("0");
@@ -117,8 +118,8 @@ class ProcessEffortClarificationResolverTest {
     @Test
     void decimalAnswerRemainsValid() {
         ProcessEffortClarificationResolution resolution = resolver.resolve(
-                baseline(evidence(exactVolume("1000", "ticket", "ticket"), absent("ticket", "ticket")),
-                        gap(ProcessEffortMaterialityEvidenceGapKind.EFFORT_PER_BUSINESS_ITEM)),
+                context(baseline(evidence(exactVolume("1000", "ticket", "ticket"), absent("ticket", "ticket")),
+                        gap(ProcessEffortMaterialityEvidenceGapKind.EFFORT_PER_BUSINESS_ITEM))),
                 List.of(answer(ProcessEffortMaterialityEvidenceGapKind.EFFORT_PER_BUSINESS_ITEM, "2.5")));
 
         assertThat(quantity(resolution.derivedResult()).magnitude()).isEqualByComparingTo("2500.0");
@@ -129,8 +130,8 @@ class ProcessEffortClarificationResolverTest {
     @Test
     void resolutionCarriesClarificationEstablishedAndMixedProvenance() {
         ProcessEffortClarificationResolution resolution = resolver.resolve(
-                baseline(evidence(absent("ticket", "ticket"), exactEffort("2", "ticket", "ticket")),
-                        gap(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD)),
+                context(baseline(evidence(absent("ticket", "ticket"), exactEffort("2", "ticket", "ticket")),
+                        gap(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD))),
                 List.of(answer(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD, "4000")));
 
         assertThat(resolution.clarificationKnowledge().knownFacts())
@@ -154,8 +155,8 @@ class ProcessEffortClarificationResolverTest {
     @Test
     void derivedFactCarriesDeterministicGroundingCanonicalPremisesAndNoDirectEvidenceArtifacts() {
         ProcessEffortClarificationResolution resolution = resolver.resolve(
-                baseline(evidence(absent("ticket", "ticket"), exactEffort("2", "ticket", "ticket")),
-                        gap(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD)),
+                context(baseline(evidence(absent("ticket", "ticket"), exactEffort("2", "ticket", "ticket")),
+                        gap(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD))),
                 List.of(answer(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD, "4000")));
 
         ProcessKnownFact fact = resolution.derivedResult().resultFact();
@@ -170,12 +171,76 @@ class ProcessEffortClarificationResolverTest {
     @Test
     void successfulResolutionNeverReturnsNotEstablishedMateriality() {
         ProcessEffortClarificationResolution resolution = resolver.resolve(
-                baseline(evidence(absent("ticket", "ticket"), exactEffort("2", "ticket", "ticket")),
-                        gap(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD)),
+                context(baseline(evidence(absent("ticket", "ticket"), exactEffort("2", "ticket", "ticket")),
+                        gap(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD))),
                 List.of(answer(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD, "4")));
 
         assertThat(resolution.materialityAssessment().status())
                 .isNotEqualTo(ProcessEffortMaterialityAssessmentStatus.NOT_ESTABLISHED);
+    }
+
+    @Test
+    void actionableBaselineProducesMinimalClarificationContext() {
+        ProcessAnalysisResult baseline = baseline(
+                evidence(absent("ticket", "ticket"), exactEffort("2", "ticket", "ticket")),
+                gap(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD));
+        ProcessEffortMaterialityAssessment assessment = baseline.materialityAssessment().orElseThrow();
+
+        ProcessEffortClarificationContext context = context(baseline);
+
+        assertThat(context.effortEvidence()).isSameAs(baseline.effortEvidence());
+        assertThat(context.sourceKnowledge()).isSameAs(baseline.sourceKnowledge());
+        assertThat(context.materialityAssessment()).isSameAs(assessment);
+        assertThat(context.materialityAssessment().status())
+                .isEqualTo(ProcessEffortMaterialityAssessmentStatus.NOT_ESTABLISHED);
+        assertThat(context.actionableGaps())
+                .extracting(ProcessEffortMaterialityEvidenceGap::kind)
+                .containsExactly(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD);
+    }
+
+    @Test
+    void clarificationContextDoesNotCarryBroadBaselineOrTechnologyFitState() {
+        assertThat(recordComponentNames(ProcessEffortClarificationContext.class))
+                .containsExactly(
+                        "effortEvidence",
+                        "sourceKnowledge",
+                        "materialityAssessment",
+                        "actionableGaps")
+                .doesNotContain(
+                        "understanding",
+                        "technologyFitAssessments",
+                        "volumeProjection",
+                        "effortProjection",
+                        "derivedResult",
+                        "composable");
+        assertThat(recordComponentTypes(ProcessEffortClarificationContext.class))
+                .doesNotContain(
+                        ProcessUnderstanding.class,
+                        TechnologyFitAssessment.class,
+                        ProcessEffortDerivedResult.class);
+    }
+
+    @Test
+    void contextDefensivelyCopiesActionableGaps() {
+        ProcessAnalysisResult baseline = baseline(
+                evidence(absent("ticket", "ticket"), exactEffort("2", "ticket", "ticket")),
+                gap(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD));
+        List<ProcessEffortMaterialityEvidenceGap> mutableGaps =
+                new ArrayList<>(baseline.materialityEvidenceGaps());
+
+        ProcessEffortClarificationContext context = new ProcessEffortClarificationContext(
+                baseline.effortEvidence(),
+                baseline.sourceKnowledge(),
+                baseline.materialityAssessment().orElseThrow(),
+                mutableGaps);
+
+        mutableGaps.clear();
+
+        assertThat(context.actionableGaps())
+                .extracting(ProcessEffortMaterialityEvidenceGap::kind)
+                .containsExactly(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD);
+        assertThatThrownBy(() -> context.actionableGaps().clear())
+                .isInstanceOf(UnsupportedOperationException.class);
     }
 
     @Test
@@ -186,7 +251,7 @@ class ProcessEffortClarificationResolverTest {
                 gap(ProcessEffortMaterialityEvidenceGapKind.EFFORT_PER_BUSINESS_ITEM));
 
         assertThatThrownBy(() -> resolver.resolve(
-                        baseline,
+                        context(baseline),
                         List.of(answer(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD, "4000"))))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("exactly match");
@@ -199,7 +264,7 @@ class ProcessEffortClarificationResolverTest {
                 gap(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD));
 
         assertThatThrownBy(() -> resolver.resolve(
-                        baseline,
+                        context(baseline),
                         List.of(
                                 answer(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD, "4000"),
                                 answer(ProcessEffortMaterialityEvidenceGapKind.EFFORT_PER_BUSINESS_ITEM, "2"))))
@@ -214,7 +279,7 @@ class ProcessEffortClarificationResolverTest {
                 gap(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD));
 
         assertThatThrownBy(() -> resolver.resolve(
-                        baseline,
+                        context(baseline),
                         List.of(
                                 answer(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD, "4000"),
                                 answer(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD, "5000"))))
@@ -229,7 +294,7 @@ class ProcessEffortClarificationResolverTest {
                 gap(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD));
 
         assertThatThrownBy(() -> resolver.resolve(
-                        baseline,
+                        context(baseline),
                         List.of(answer(ProcessEffortMaterialityEvidenceGapKind.EFFORT_PER_BUSINESS_ITEM, "2"))))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("exactly match");
@@ -241,11 +306,21 @@ class ProcessEffortClarificationResolverTest {
                 exactVolume("4000", "ticket", "ticket"),
                 exactEffort("2", "ticket", "ticket")));
 
-        assertThatThrownBy(() -> resolver.resolve(
-                        baseline,
-                        List.of(answer(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD, "4000"))))
+        assertThatThrownBy(() -> context(baseline))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("actionable materiality evidence gaps");
+    }
+
+    @Test
+    void duplicateActionableGapKindsAreRejectedByContext() {
+        ProcessAnalysisResult baseline = baseline(
+                evidence(absent("ticket", "ticket"), exactEffort("2", "ticket", "ticket")),
+                gap(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD),
+                gap(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD));
+
+        assertThatThrownBy(() -> context(baseline))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("duplicate actionable gap kind");
     }
 
     @Test
@@ -254,9 +329,7 @@ class ProcessEffortClarificationResolverTest {
                 evidence(absent("ticket", "ticket"), exactEffort("2", "ticket", "ticket")),
                 gap(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD)));
 
-        assertThatThrownBy(() -> resolver.resolve(
-                        baseline,
-                        List.of(answer(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD, "4000"))))
+        assertThatThrownBy(() -> context(baseline))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("materiality assessment");
     }
@@ -275,11 +348,26 @@ class ProcessEffortClarificationResolverTest {
                                         ProcessEffortDurationUnit.MINUTE,
                                         ProcessReportingPeriodUnit.MONTH)))));
 
-        assertThatThrownBy(() -> resolver.resolve(
-                        baseline,
-                        List.of(answer(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD, "4000"))))
+        assertThatThrownBy(() -> context(baseline))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("not established");
+    }
+
+    @Test
+    void nonP06AssessmentThresholdIsRejectedByContext() {
+        ProcessAnalysisResult baseline = withMateriality(
+                baseline(evidence(absent("ticket", "ticket"), exactEffort("2", "ticket", "ticket")),
+                        gap(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD)),
+                ProcessEffortMaterialityAssessment.notEstablished(new ProcessEffortMaterialityThreshold(
+                        new ProcessQuantityProjection(
+                                new BigDecimal("2401"),
+                                new ProcessEffortPerReportingPeriodUnit(
+                                        ProcessEffortDurationUnit.MINUTE,
+                                        ProcessReportingPeriodUnit.MONTH)))));
+
+        assertThatThrownBy(() -> context(baseline))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("P06 lab policy");
     }
 
     @Test
@@ -289,11 +377,18 @@ class ProcessEffortClarificationResolverTest {
                         gap(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD)),
                 understanding(ProcessAnalysisStatus.OUT_OF_SCOPE));
 
-        assertThatThrownBy(() -> resolver.resolve(
-                        baseline,
-                        List.of(answer(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD, "4000"))))
+        assertThatThrownBy(() -> context(baseline))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("identify a process");
+    }
+
+    @Test
+    void resolverRejectsAnswersWhenNoValidContextExists() {
+        assertThatThrownBy(() -> resolver.resolve(
+                        null,
+                        List.of(answer(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD, "4000"))))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessageContaining("context");
     }
 
     @Test
@@ -303,7 +398,7 @@ class ProcessEffortClarificationResolverTest {
                 gap(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD));
 
         assertThatThrownBy(() -> resolver.resolve(
-                        baseline,
+                        context(baseline),
                         List.of(answer(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD, "4000"))))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("no answerable evidence context");
@@ -320,7 +415,7 @@ class ProcessEffortClarificationResolverTest {
                         exactEffort("2", "ticket", "ticket"))).sourceKnowledge());
 
         assertThatThrownBy(() -> resolver.resolve(
-                        baseline,
+                        context(baseline),
                         List.of(
                                 answer(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD, "4000"),
                                 answer(ProcessEffortMaterialityEvidenceGapKind.EFFORT_PER_BUSINESS_ITEM, "2"))))
@@ -335,7 +430,7 @@ class ProcessEffortClarificationResolverTest {
                 gap(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD));
 
         assertThatThrownBy(() -> resolver.resolve(
-                        baseline,
+                        context(baseline),
                         List.of(answer(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD, "4000"))))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("did not produce deterministic effort burden");
@@ -351,7 +446,7 @@ class ProcessEffortClarificationResolverTest {
         List<ProcessEffortMaterialityEvidenceGap> originalGaps = baseline.materialityEvidenceGaps();
 
         resolver.resolve(
-                baseline,
+                context(baseline),
                 List.of(answer(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD, "4000")));
 
         assertThat(baseline.effortEvidence()).isSameAs(originalEvidence);
@@ -382,6 +477,19 @@ class ProcessEffortClarificationResolverTest {
                         TechnologyFitAssessmentEvaluator.class,
                         ProcessEffortMaterialityEvidenceGapIdentifier.class,
                         ProcessEffortPerReportingPeriodDerivationVerifier.class);
+        assertThat(recordComponentTypes(ProcessEffortClarificationContext.class))
+                .doesNotContain(
+                        ProcessAnalysisModelClient.class,
+                        TechnologyFitAssessmentEvaluator.class,
+                        ProcessEffortMaterialityEvidenceGapIdentifier.class,
+                        ProcessEffortPerReportingPeriodDerivationVerifier.class);
+    }
+
+    @Test
+    void resolverNoLongerAcceptsProcessAnalysisResult() {
+        assertThat(methodParameterTypes(ProcessEffortClarificationResolver.class, "resolve"))
+                .doesNotContain(ProcessAnalysisResult.class)
+                .contains(ProcessEffortClarificationContext.class);
     }
 
     @Test
@@ -406,6 +514,24 @@ class ProcessEffortClarificationResolverTest {
                 "src/main/java/com/codeworkdigital/api/processanalysis/application/ProcessEffortClarificationResolver.java"));
 
         assertThat(source).doesNotContain("DerivationVerifier");
+    }
+
+    @Test
+    void publicApiDoesNotExposeClarificationContext() throws Exception {
+        String controller = Files.readString(Path.of(
+                "src/main/java/com/codeworkdigital/api/processanalysis/api/ProcessAnalysisController.java"));
+        String request = Files.readString(Path.of(
+                "src/main/java/com/codeworkdigital/api/processanalysis/api/ProcessAnalysisRequest.java"));
+        String response = Files.readString(Path.of(
+                "src/main/java/com/codeworkdigital/api/processanalysis/api/ProcessAnalysisResponse.java"));
+
+        assertThat(controller + request + response)
+                .doesNotContain("ProcessEffortClarificationContext")
+                .doesNotContain("ProcessEffortMaterialityClarificationAnswer");
+    }
+
+    private ProcessEffortClarificationContext context(ProcessAnalysisResult baseline) {
+        return ProcessEffortClarificationContext.from(baseline);
     }
 
     private ProcessAnalysisResult baseline(
@@ -602,6 +728,26 @@ class ProcessEffortClarificationResolverTest {
         return Arrays.stream(type.getDeclaredConstructors())
                 .map(Constructor::getParameterTypes)
                 .flatMap(Arrays::stream)
+                .toList();
+    }
+
+    private List<Class<?>> methodParameterTypes(Class<?> type, String methodName) {
+        return Arrays.stream(type.getDeclaredMethods())
+                .filter(method -> method.getName().equals(methodName))
+                .map(method -> method.getParameterTypes())
+                .flatMap(Arrays::stream)
+                .toList();
+    }
+
+    private List<String> recordComponentNames(Class<?> type) {
+        return Arrays.stream(type.getRecordComponents())
+                .map(component -> component.getName())
+                .toList();
+    }
+
+    private List<Class<?>> recordComponentTypes(Class<?> type) {
+        return Arrays.stream(type.getRecordComponents())
+                .<Class<?>>map(component -> component.getType())
                 .toList();
     }
 }
