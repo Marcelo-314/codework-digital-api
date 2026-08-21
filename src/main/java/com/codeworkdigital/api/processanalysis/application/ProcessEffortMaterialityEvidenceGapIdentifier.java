@@ -57,11 +57,11 @@ public class ProcessEffortMaterialityEvidenceGapIdentifier {
                 case EFFORT_PER_BUSINESS_ITEM -> "How many minutes of effort per processed business item do you use as the reference value?";
             };
             case ES -> switch (kind) {
-                case VOLUME_PER_REPORTING_PERIOD -> "Que cantidad mensual usas como volumen de referencia para este proceso?";
-                case EFFORT_PER_BUSINESS_ITEM -> "Cuantos minutos de esfuerzo por item de negocio procesado usas como valor de referencia?";
+                case VOLUME_PER_REPORTING_PERIOD -> "¿Qué cantidad mensual usas como volumen de referencia para este proceso?";
+                case EFFORT_PER_BUSINESS_ITEM -> "¿Cuántos minutos de esfuerzo por ítem de negocio procesado usas como valor de referencia?";
             };
             case IT -> switch (kind) {
-                case VOLUME_PER_REPORTING_PERIOD -> "Quale quantita mensile usi come volume di riferimento per questo processo?";
+                case VOLUME_PER_REPORTING_PERIOD -> "Quale quantità mensile usi come volume di riferimento per questo processo?";
                 case EFFORT_PER_BUSINESS_ITEM -> "Quanti minuti di lavoro per elemento di business processato usi come valore di riferimento?";
             };
         };

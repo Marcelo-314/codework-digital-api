@@ -4,7 +4,6 @@ import com.codeworkdigital.api.processanalysis.application.AnalyzeProcessDescrip
 import com.codeworkdigital.api.processanalysis.application.ProcessAnalysisApplicationService;
 import com.codeworkdigital.api.processanalysis.application.ProcessAnalysisLocale;
 import com.codeworkdigital.api.processanalysis.application.ProcessAnalysisResult;
-import com.codeworkdigital.api.processanalysis.application.ProcessUnderstanding;
 import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -24,11 +23,11 @@ public class ProcessAnalysisController {
     }
 
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<ProcessUnderstanding> analyze(@Valid @RequestBody ProcessAnalysisRequest request) {
+    public ResponseEntity<ProcessAnalysisResponse> analyze(@Valid @RequestBody ProcessAnalysisRequest request) {
         ProcessAnalysisResult result = applicationService.analyze(new AnalyzeProcessDescriptionCommand(
                 normalize(request.description()),
                 mapLocale(normalize(request.locale()))));
-        return ResponseEntity.ok(result.understanding());
+        return ResponseEntity.ok(ProcessAnalysisResponse.from(result));
     }
 
     private String normalize(String value) {

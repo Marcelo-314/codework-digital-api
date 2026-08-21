@@ -99,6 +99,8 @@ class ProcessAnalysisApiIntegrationTest {
         assertThat((List<?>) body.get("observations")).isNotEmpty();
         assertThat((List<?>) body.get("stages")).hasSize(2);
         assertThat((List<?>) body.get("technologyFitAssessments")).hasSize(2);
+        assertThat((List<?>) body.get("clarificationQuestions")).isEmpty();
+        assertThat(body).doesNotContainKey("understanding");
         assertThat(body.keySet()).containsExactlyInAnyOrder(
                 "processDescription",
                 "analysisStatus",
@@ -107,7 +109,8 @@ class ProcessAnalysisApiIntegrationTest {
                 "validationQuestions",
                 "stages",
                 "preliminaryAssessment",
-                "technologyFitAssessments");
+                "technologyFitAssessments",
+                "clarificationQuestions");
         assertThat(body).doesNotContainKeys(
                 "effortEvidence",
                 "volumeProjection",
@@ -168,6 +171,95 @@ class ProcessAnalysisApiIntegrationTest {
                 "SELF_REPORTED",
                 "12 minute per month",
                 "Deterministically derived effort");
+    }
+
+    @Test
+    void absentVolumeReturnsPublicVolumeClarificationQuestion() throws Exception {
+        processAnalysisModelClient.mode = FakeProcessAnalysisModelClient.Mode.VOLUME_ABSENT;
+
+        Map<String, Object> body = json(postWithLocale("EN"));
+
+        assertClarificationQuestions(body,
+                Map.of(
+                        "code", "VOLUME_PER_REPORTING_PERIOD",
+                        "question", "What monthly quantity do you use as the reference volume for this process?"));
+        assertThat(body).containsKey("validationQuestions");
+        assertThat(body).doesNotContainKey("understanding");
+        assertNoInternalAnalysisFieldsLeak(body);
+        assertNoInternalAnalysisTextLeaks(lastResponseBody);
+        assertThat(processAnalysisModelClient.invocations).isEqualTo(1);
+    }
+
+    @Test
+    void absentEffortReturnsPublicEffortClarificationQuestion() throws Exception {
+        processAnalysisModelClient.mode = FakeProcessAnalysisModelClient.Mode.EFFORT_ABSENT;
+
+        Map<String, Object> body = json(postWithLocale("EN"));
+
+        assertClarificationQuestions(body,
+                Map.of(
+                        "code", "EFFORT_PER_BUSINESS_ITEM",
+                        "question", "How many minutes of effort per processed business item do you use as the reference value?"));
+        assertNoInternalAnalysisFieldsLeak(body);
+        assertThat(processAnalysisModelClient.invocations).isEqualTo(1);
+    }
+
+    @Test
+    void bothAbsentReturnPublicQuestionsInDeterministicVolumeThenEffortOrder() throws Exception {
+        processAnalysisModelClient.mode = FakeProcessAnalysisModelClient.Mode.BOTH_ABSENT;
+
+        Map<String, Object> body = json(postWithLocale("EN"));
+
+        assertClarificationQuestions(body,
+                Map.of(
+                        "code", "VOLUME_PER_REPORTING_PERIOD",
+                        "question", "What monthly quantity do you use as the reference volume for this process?"),
+                Map.of(
+                        "code", "EFFORT_PER_BUSINESS_ITEM",
+                        "question", "How many minutes of effort per processed business item do you use as the reference value?"));
+        assertThat(processAnalysisModelClient.invocations).isEqualTo(1);
+    }
+
+    @Test
+    void publicClarificationQuestionsUseLocalizedTextAndStableCodes() throws Exception {
+        processAnalysisModelClient.mode = FakeProcessAnalysisModelClient.Mode.BOTH_ABSENT;
+
+        Map<String, Object> spanish = json(postWithLocale("ES"));
+        Map<String, Object> italian = json(postWithLocale("IT"));
+        Map<String, Object> english = json(postWithLocale("EN"));
+
+        assertClarificationQuestions(spanish,
+                Map.of(
+                        "code", "VOLUME_PER_REPORTING_PERIOD",
+                        "question", "¿Qué cantidad mensual usas como volumen de referencia para este proceso?"),
+                Map.of(
+                        "code", "EFFORT_PER_BUSINESS_ITEM",
+                        "question", "¿Cuántos minutos de esfuerzo por ítem de negocio procesado usas como valor de referencia?"));
+        assertClarificationQuestions(italian,
+                Map.of(
+                        "code", "VOLUME_PER_REPORTING_PERIOD",
+                        "question", "Quale quantità mensile usi come volume di riferimento per questo processo?"),
+                Map.of(
+                        "code", "EFFORT_PER_BUSINESS_ITEM",
+                        "question", "Quanti minuti di lavoro per elemento di business processato usi come valore di riferimento?"));
+        assertClarificationQuestions(english,
+                Map.of(
+                        "code", "VOLUME_PER_REPORTING_PERIOD",
+                        "question", "What monthly quantity do you use as the reference volume for this process?"),
+                Map.of(
+                        "code", "EFFORT_PER_BUSINESS_ITEM",
+                        "question", "How many minutes of effort per processed business item do you use as the reference value?"));
+        assertThat(processAnalysisModelClient.invocations).isEqualTo(3);
+    }
+
+    @Test
+    void unsupportedNonAbsentCausesDoNotCreatePublicClarificationQuestions() throws Exception {
+        processAnalysisModelClient.mode = FakeProcessAnalysisModelClient.Mode.UNSUPPORTED_NON_ABSENT;
+
+        Map<String, Object> body = json(postWithLocale("EN"));
+
+        assertThat(body.get("clarificationQuestions")).isEqualTo(List.of());
+        assertThat(processAnalysisModelClient.invocations).isEqualTo(1);
     }
 
     @Test
@@ -234,6 +326,7 @@ class ProcessAnalysisApiIntegrationTest {
         assertThat((List<?>) body.get("stages")).isEmpty();
         assertThat(body.get("preliminaryAssessment")).isEqualTo("");
         assertThat((List<?>) body.get("technologyFitAssessments")).isEmpty();
+        assertThat(body.get("clarificationQuestions")).isEqualTo(List.of());
         assertThat(processAnalysisModelClient.invocations).isEqualTo(1);
     }
 
@@ -254,6 +347,7 @@ class ProcessAnalysisApiIntegrationTest {
         assertThat(body).doesNotContainKey("processIdentified");
         assertThat((List<?>) body.get("stages")).isEmpty();
         assertThat((List<?>) body.get("technologyFitAssessments")).isEmpty();
+        assertThat(body.get("clarificationQuestions")).isEqualTo(List.of());
         assertThat(body.get("preliminaryAssessment")).isEqualTo("");
         assertThat(response.body()).doesNotContain("irrational", "proof", "theorem");
         assertThat(processAnalysisModelClient.invocations).isEqualTo(1);
@@ -378,6 +472,84 @@ class ProcessAnalysisApiIntegrationTest {
         assertThat(body.get("code")).isEqualTo(code);
     }
 
+    @SafeVarargs
+    private void assertClarificationQuestions(
+            Map<String, Object> body,
+            Map<String, String>... expectedQuestions) {
+        assertThat(body.get("clarificationQuestions")).isInstanceOf(List.class);
+        List<?> questions = (List<?>) body.get("clarificationQuestions");
+        assertThat(questions).hasSize(expectedQuestions.length);
+        for (int index = 0; index < expectedQuestions.length; index++) {
+            assertThat(questions.get(index)).isInstanceOf(Map.class);
+            Map<?, ?> question = (Map<?, ?>) questions.get(index);
+            assertThat(question.keySet().stream().map(Object::toString).toList())
+                    .containsExactlyInAnyOrder("code", "question");
+            assertThat(question.get("code")).isEqualTo(expectedQuestions[index].get("code"));
+            assertThat(question.get("question")).isEqualTo(expectedQuestions[index].get("question"));
+        }
+    }
+
+    private void assertNoInternalAnalysisFieldsLeak(Map<String, Object> body) {
+        assertThat(body.keySet()).doesNotContain(
+                "effortEvidence",
+                "volumeProjection",
+                "effortProjection",
+                "sourceKnowledge",
+                "derivedResult",
+                "materialityAssessment",
+                "materialityThreshold",
+                "materialityEvidenceGaps",
+                "evidenceGap",
+                "kind",
+                "decisionAffected",
+                "scope",
+                "establishedOperationalBurden",
+                "knownFacts",
+                "sourceKnowledge",
+                "computableProjection",
+                "businessItemRef",
+                "businessItemLabel",
+                "clarificationAnswers",
+                "answer",
+                "value",
+                "numericValue",
+                "questionId",
+                "conversationId",
+                "sessionId",
+                "analysisId");
+    }
+
+    private void assertNoInternalAnalysisTextLeaks(String body) {
+        assertThat(body).doesNotContain(
+                "ProcessEffortMaterialityEvidenceGap",
+                "ProcessEffortMaterialityEvidenceGapKind",
+                "ProcessEvidenceGap",
+                "evidenceGap",
+                "kind",
+                "decisionAffected",
+                "SELF_REPORTED",
+                "scope",
+                "materialityAssessment",
+                "materialityThreshold",
+                "NOT_ESTABLISHED",
+                "NO_MATERIAL_JUSTIFICATION_IDENTIFIED",
+                "OPPORTUNITY_IDENTIFIED",
+                "2400",
+                "40 hours",
+                "establishedOperationalBurden",
+                "derivedResult",
+                "sourceKnowledge",
+                "knownFacts",
+                "computableProjection",
+                "businessItemRef",
+                "businessItemLabel",
+                "clarificationAnswers",
+                "numericValue",
+                "conversationId",
+                "sessionId",
+                "analysisId");
+    }
+
     private HttpResponse<String> post(String body) throws IOException, InterruptedException {
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create("http://localhost:" + port + "/api/labs/process-analysis"))
@@ -385,6 +557,19 @@ class ProcessAnalysisApiIntegrationTest {
                 .POST(HttpRequest.BodyPublishers.ofString(body))
                 .build();
         return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    }
+
+    private String lastResponseBody;
+
+    private HttpResponse<String> postWithLocale(String locale) throws IOException, InterruptedException {
+        HttpResponse<String> response = post("""
+                {
+                  "description": "Recibimos pedidos por WhatsApp, verificamos stock y confirmamos entrega.",
+                  "locale": "%s"
+                }
+                """.formatted(locale));
+        lastResponseBody = response.body();
+        return response;
     }
 
     private HttpResponse<String> postWithOrigin(String body, String origin) throws IOException, InterruptedException {
@@ -449,6 +634,10 @@ class ProcessAnalysisApiIntegrationTest {
 
         enum Mode {
             SUCCESS,
+            VOLUME_ABSENT,
+            EFFORT_ABSENT,
+            BOTH_ABSENT,
+            UNSUPPORTED_NON_ABSENT,
             INSUFFICIENT_INFORMATION,
             OUT_OF_SCOPE,
             UNAVAILABLE,
@@ -464,7 +653,7 @@ class ProcessAnalysisApiIntegrationTest {
             invocations++;
             lastCommand = command;
             ProcessUnderstanding understanding = switch (mode) {
-                case SUCCESS -> new ProcessUnderstanding(
+                case SUCCESS, VOLUME_ABSENT, EFFORT_ABSENT, BOTH_ABSENT, UNSUPPORTED_NON_ABSENT -> new ProcessUnderstanding(
                         command.description(),
                         List.of("El proceso recibe pedidos por mensajeria."),
                         List.of("Puede existir una verificacion manual antes de confirmar."),
@@ -504,7 +693,7 @@ class ProcessAnalysisApiIntegrationTest {
                 case UNAVAILABLE -> throw new ProcessAnalysisUnavailableException("simulated_unavailable");
                 case INVALID_RESPONSE -> throw new InvalidProcessAnalysisModelResponseException("simulated_invalid_response");
             };
-            return new ProcessAnalysisModelResult(understanding, exactEvidence());
+            return new ProcessAnalysisModelResult(understanding, evidenceForMode());
         }
 
         void reset() {
@@ -513,30 +702,98 @@ class ProcessAnalysisApiIntegrationTest {
             mode = Mode.SUCCESS;
         }
 
+        private ProcessEffortEvidence evidenceForMode() {
+            return switch (mode) {
+                case VOLUME_ABSENT -> new ProcessEffortEvidence(
+                        absentQuantity("item-1", "pedido"),
+                        exactEffort("3", "item-1", "pedido"));
+                case EFFORT_ABSENT -> new ProcessEffortEvidence(
+                        exactVolume("4000", "item-1", "pedido"),
+                        absentQuantity("item-1", "pedido"));
+                case BOTH_ABSENT -> new ProcessEffortEvidence(
+                        absentQuantity("item-1", "pedido"),
+                        absentQuantity("item-1", "pedido"));
+                case UNSUPPORTED_NON_ABSENT -> new ProcessEffortEvidence(
+                        new ProcessEffortEvidenceQuantity(
+                                ProcessEffortEvidenceQuantityStatus.APPROXIMATE,
+                                new BigDecimal("4000"),
+                                null,
+                                null,
+                                "item-1",
+                                "pedido",
+                                com.codeworkdigital.api.processanalysis.domain.ProcessReportingPeriodUnit.MONTH,
+                                null,
+                                "aproximadamente 4000 pedidos por mes",
+                                null),
+                        new ProcessEffortEvidenceQuantity(
+                                ProcessEffortEvidenceQuantityStatus.RANGE,
+                                null,
+                                new BigDecimal("2"),
+                                new BigDecimal("4"),
+                                "item-1",
+                                "pedido",
+                                null,
+                                com.codeworkdigital.api.processanalysis.domain.ProcessEffortDurationUnit.MINUTE,
+                                "entre 2 y 4 minutos por pedido",
+                                null));
+                case SUCCESS, INSUFFICIENT_INFORMATION, OUT_OF_SCOPE, UNAVAILABLE, INVALID_RESPONSE -> exactEvidence();
+            };
+        }
+
         private ProcessEffortEvidence exactEvidence() {
             return new ProcessEffortEvidence(
-                    new ProcessEffortEvidenceQuantity(
-                            ProcessEffortEvidenceQuantityStatus.EXACT,
-                            new BigDecimal("4"),
-                            null,
-                            null,
-                            "item-1",
-                            "pedido",
-                            com.codeworkdigital.api.processanalysis.domain.ProcessReportingPeriodUnit.MONTH,
-                            null,
-                            "4 pedidos por mes",
-                            null),
-                    new ProcessEffortEvidenceQuantity(
-                            ProcessEffortEvidenceQuantityStatus.EXACT,
-                            new BigDecimal("3"),
-                            null,
-                            null,
-                            "item-1",
-                            "pedido",
-                            null,
-                            com.codeworkdigital.api.processanalysis.domain.ProcessEffortDurationUnit.MINUTE,
-                            "3 minutos por pedido",
-                            null));
+                    exactVolume("4", "item-1", "pedido"),
+                    exactEffort("3", "item-1", "pedido"));
+        }
+
+        private ProcessEffortEvidenceQuantity exactVolume(String magnitude, String businessItemRef, String businessItemLabel) {
+            return quantity(
+                    ProcessEffortEvidenceQuantityStatus.EXACT,
+                    magnitude,
+                    businessItemRef,
+                    businessItemLabel,
+                    com.codeworkdigital.api.processanalysis.domain.ProcessReportingPeriodUnit.MONTH,
+                    null);
+        }
+
+        private ProcessEffortEvidenceQuantity exactEffort(String magnitude, String businessItemRef, String businessItemLabel) {
+            return quantity(
+                    ProcessEffortEvidenceQuantityStatus.EXACT,
+                    magnitude,
+                    businessItemRef,
+                    businessItemLabel,
+                    null,
+                    com.codeworkdigital.api.processanalysis.domain.ProcessEffortDurationUnit.MINUTE);
+        }
+
+        private ProcessEffortEvidenceQuantity absentQuantity(String businessItemRef, String businessItemLabel) {
+            return quantity(
+                    ProcessEffortEvidenceQuantityStatus.ABSENT,
+                    null,
+                    businessItemRef,
+                    businessItemLabel,
+                    null,
+                    null);
+        }
+
+        private ProcessEffortEvidenceQuantity quantity(
+                ProcessEffortEvidenceQuantityStatus status,
+                String magnitude,
+                String businessItemRef,
+                String businessItemLabel,
+                com.codeworkdigital.api.processanalysis.domain.ProcessReportingPeriodUnit reportingPeriod,
+                com.codeworkdigital.api.processanalysis.domain.ProcessEffortDurationUnit effortDuration) {
+            return new ProcessEffortEvidenceQuantity(
+                    status,
+                    magnitude == null ? null : new BigDecimal(magnitude),
+                    null,
+                    null,
+                    businessItemRef,
+                    businessItemLabel,
+                    reportingPeriod,
+                    effortDuration,
+                    null,
+                    null);
         }
     }
 }

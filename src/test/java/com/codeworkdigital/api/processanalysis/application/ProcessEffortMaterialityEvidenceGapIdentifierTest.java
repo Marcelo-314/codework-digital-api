@@ -243,7 +243,7 @@ class ProcessEffortMaterialityEvidenceGapIdentifierTest {
 
         assertThat(evidenceGaps(italian)).extracting(ProcessEvidenceGap::question)
                 .containsExactly(
-                        "Quale quantita mensile usi come volume di riferimento per questo processo?",
+                        "Quale quantità mensile usi come volume di riferimento per questo processo?",
                         "Quanti minuti di lavoro per elemento di business processato usi come valore di riferimento?");
         assertThat(italian).extracting(ProcessEffortMaterialityEvidenceGap::kind)
                 .containsExactlyElementsOf(english.stream().map(ProcessEffortMaterialityEvidenceGap::kind).toList());
@@ -259,14 +259,14 @@ class ProcessEffortMaterialityEvidenceGapIdentifierTest {
     @Test
     void rendersDeterministicSpanishQuestions() {
         assertThat(questions(ProcessAnalysisLocale.ES)).containsExactly(
-                "Que cantidad mensual usas como volumen de referencia para este proceso?",
-                "Cuantos minutos de esfuerzo por item de negocio procesado usas como valor de referencia?");
+                "¿Qué cantidad mensual usas como volumen de referencia para este proceso?",
+                "¿Cuántos minutos de esfuerzo por ítem de negocio procesado usas como valor de referencia?");
     }
 
     @Test
     void rendersDeterministicItalianQuestions() {
         assertThat(questions(ProcessAnalysisLocale.IT)).containsExactly(
-                "Quale quantita mensile usi come volume di riferimento per questo processo?",
+                "Quale quantità mensile usi come volume di riferimento per questo processo?",
                 "Quanti minuti di lavoro per elemento di business processato usi come valore di riferimento?");
     }
 
