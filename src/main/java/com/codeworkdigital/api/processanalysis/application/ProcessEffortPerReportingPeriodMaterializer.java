@@ -23,11 +23,18 @@ public class ProcessEffortPerReportingPeriodMaterializer {
 
     public Optional<ProcessEffortDerivedResult> materialize(ProcessEffortSourceKnowledge sourceKnowledge) {
         Objects.requireNonNull(sourceKnowledge, "sourceKnowledge");
+        return materialize(new ProcessEffortEstablishedKnowledge(
+                sourceKnowledge.evidenceBase(),
+                sourceKnowledge.knownFacts()));
+    }
+
+    public Optional<ProcessEffortDerivedResult> materialize(ProcessEffortEstablishedKnowledge establishedKnowledge) {
+        Objects.requireNonNull(establishedKnowledge, "establishedKnowledge");
         Optional<ProcessKnownFact> volumeFact = sourceFact(
-                sourceKnowledge,
+                establishedKnowledge,
                 ProcessEffortSourceKnowledgeMapper.VOLUME_FACT_ID);
         Optional<ProcessKnownFact> effortFact = sourceFact(
-                sourceKnowledge,
+                establishedKnowledge,
                 ProcessEffortSourceKnowledgeMapper.EFFORT_FACT_ID);
         if (volumeFact.isEmpty() || effortFact.isEmpty()) {
             return Optional.empty();
@@ -70,9 +77,9 @@ public class ProcessEffortPerReportingPeriodMaterializer {
     }
 
     private static Optional<ProcessKnownFact> sourceFact(
-            ProcessEffortSourceKnowledge sourceKnowledge,
+            ProcessEffortEstablishedKnowledge establishedKnowledge,
             ProcessKnownFactId factId) {
-        return sourceKnowledge.knownFacts().stream()
+        return establishedKnowledge.knownFacts().stream()
                 .filter(fact -> fact.id().equals(factId))
                 .filter(fact -> fact.grounding() == ProcessFactGrounding.SOURCE_STATED)
                 .findFirst();

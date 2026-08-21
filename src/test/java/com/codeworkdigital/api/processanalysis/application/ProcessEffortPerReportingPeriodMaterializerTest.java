@@ -18,6 +18,8 @@ import com.codeworkdigital.api.processanalysis.domain.ProcessReportingPeriodUnit
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -244,6 +246,14 @@ class ProcessEffortPerReportingPeriodMaterializerTest {
                 .doesNotContain(ProcessEffortPerReportingPeriodDerivationVerifier.class);
         assertThat(constructorParameterTypes(ProcessEffortEvidenceProjectionMapper.class))
                 .doesNotContain(ProcessEffortPerReportingPeriodDerivationVerifier.class);
+    }
+
+    @Test
+    void productionP06MultiplicationIsImplementedOnce() throws Exception {
+        String source = Files.readString(Path.of(
+                "src/main/java/com/codeworkdigital/api/processanalysis/application/ProcessEffortPerReportingPeriodMaterializer.java"));
+
+        assertThat(source.split("\\.multiply\\(", -1).length - 1).isEqualTo(1);
     }
 
     private ProcessEffortDerivedResult materialize(ProcessEffortSourceKnowledge sourceKnowledge) {
