@@ -780,6 +780,13 @@ class ProcessAnalysisApiIntegrationTest {
                     .findFirst();
         }
 
+        @Override
+        public boolean markResolvedIfActive(
+                ProcessEffortClarificationContinuationId id,
+                Instant resolvedAt) {
+            throw new UnsupportedOperationException("HTTP issuance flow does not resolve continuations");
+        }
+
         void reset() {
             saved.clear();
             failure = null;

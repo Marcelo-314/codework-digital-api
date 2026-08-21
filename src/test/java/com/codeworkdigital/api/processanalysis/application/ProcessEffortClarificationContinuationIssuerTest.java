@@ -307,5 +307,12 @@ class ProcessEffortClarificationContinuationIssuerTest {
                 ProcessEffortClarificationContinuationId id) {
             throw new UnsupportedOperationException("issuer does not read continuations");
         }
+
+        @Override
+        public boolean markResolvedIfActive(
+                ProcessEffortClarificationContinuationId id,
+                Instant resolvedAt) {
+            throw new UnsupportedOperationException("issuer does not resolve continuations");
+        }
     }
 }

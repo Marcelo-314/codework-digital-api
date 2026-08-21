@@ -82,6 +82,8 @@ class ProcessEffortClarificationContinuationTest {
         assertThat(continuation.context()).isSameAs(context);
         assertThat(continuation.createdAt()).isEqualTo(FIXED_NOW);
         assertThat(continuation.expiresAt()).isEqualTo(FIXED_NOW.plus(Duration.ofMinutes(30)));
+        assertThat(continuation.resolvedAt()).isEmpty();
+        assertThat(continuation.isResolved()).isFalse();
         assertThat(context.actionableGaps()).isSameAs(originalGaps);
         assertThat(context.actionableGaps())
                 .extracting(ProcessEffortMaterialityEvidenceGap::kind)
@@ -103,20 +105,75 @@ class ProcessEffortClarificationContinuationTest {
     }
 
     @Test
+    void resolvedContinuationReportsResolvedWithoutChangingExpirySemantics() {
+        ProcessEffortClarificationContext context = ProcessEffortClarificationContext.from(actionableBaseline());
+        Instant resolvedAt = FIXED_NOW.plusSeconds(60);
+
+        ProcessEffortClarificationContinuation continuation = new ProcessEffortClarificationContinuation(
+                ProcessEffortClarificationContinuationId.newId(),
+                context,
+                FIXED_NOW,
+                FIXED_NOW.plus(Duration.ofMinutes(30)),
+                Optional.of(resolvedAt));
+
+        assertThat(continuation.isResolved()).isTrue();
+        assertThat(continuation.resolvedAt()).contains(resolvedAt);
+        assertThat(continuation.isExpired(continuation.expiresAt())).isTrue();
+    }
+
+    @Test
     void invalidExpiresAtIsRejected() {
         ProcessEffortClarificationContext context = ProcessEffortClarificationContext.from(actionableBaseline());
         ProcessEffortClarificationContinuationId id = ProcessEffortClarificationContinuationId.newId();
 
-        assertThatThrownBy(() -> new ProcessEffortClarificationContinuation(id, context, FIXED_NOW, FIXED_NOW))
+        assertThatThrownBy(() -> new ProcessEffortClarificationContinuation(
+                        id,
+                        context,
+                        FIXED_NOW,
+                        FIXED_NOW,
+                        Optional.empty()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("expiresAt");
         assertThatThrownBy(() -> new ProcessEffortClarificationContinuation(
                         id,
                         context,
                         FIXED_NOW,
-                        FIXED_NOW.minusNanos(1)))
+                        FIXED_NOW.minusNanos(1),
+                        Optional.empty()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("expiresAt");
+    }
+
+    @Test
+    void invalidResolvedAtIsRejected() {
+        ProcessEffortClarificationContext context = ProcessEffortClarificationContext.from(actionableBaseline());
+        ProcessEffortClarificationContinuationId id = ProcessEffortClarificationContinuationId.newId();
+        Instant expiresAt = FIXED_NOW.plus(Duration.ofMinutes(30));
+
+        assertThatThrownBy(() -> new ProcessEffortClarificationContinuation(
+                        id,
+                        context,
+                        FIXED_NOW,
+                        expiresAt,
+                        Optional.of(FIXED_NOW.minusNanos(1))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("resolvedAt");
+        assertThatThrownBy(() -> new ProcessEffortClarificationContinuation(
+                        id,
+                        context,
+                        FIXED_NOW,
+                        expiresAt,
+                        Optional.of(expiresAt)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("resolvedAt");
+        assertThatThrownBy(() -> new ProcessEffortClarificationContinuation(
+                        id,
+                        context,
+                        FIXED_NOW,
+                        expiresAt,
+                        Optional.of(expiresAt.plusNanos(1))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("resolvedAt");
     }
 
     @Test
@@ -182,7 +239,7 @@ class ProcessEffortClarificationContinuationTest {
         assertThat(Arrays.stream(ProcessEffortClarificationContinuationRepository.class.getDeclaredMethods())
                         .map(method -> method.getName())
                         .toList())
-                .containsExactlyInAnyOrder("save", "findById");
+                .containsExactlyInAnyOrder("save", "findById", "markResolvedIfActive");
 
         assertThat(parameterTypes("save"))
                 .containsExactly(ProcessEffortClarificationContinuation.class);
@@ -192,6 +249,9 @@ class ProcessEffortClarificationContinuationTest {
         assertThat(returnType("findById")).isEqualTo(Optional.class);
         assertThat(optionalReturnTypeArgument("findById"))
                 .isEqualTo(ProcessEffortClarificationContinuation.class);
+        assertThat(parameterTypes("markResolvedIfActive"))
+                .containsExactly(ProcessEffortClarificationContinuationId.class, Instant.class);
+        assertThat(returnType("markResolvedIfActive")).isEqualTo(boolean.class);
     }
 
     @Test

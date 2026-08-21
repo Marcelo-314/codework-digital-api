@@ -43,9 +43,16 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -79,8 +86,9 @@ class JdbcProcessEffortClarificationContinuationRepositoryIntegrationTest
         assertThat(toRegClass("public.contact_submission")).isEqualTo("contact_submission");
         assertThat(toRegClass("public.process_effort_clarification_continuation"))
                 .isEqualTo("process_effort_clarification_continuation");
-        assertThat(successfulMigrationVersions()).contains("1", "2");
+        assertThat(successfulMigrationVersions()).containsExactly("1", "2", "3");
         assertThat(primaryKeyColumns()).containsExactly("id");
+        assertThat(tableColumns()).contains("resolved_at");
     }
 
     @Test
@@ -107,6 +115,34 @@ class JdbcProcessEffortClarificationContinuationRepositoryIntegrationTest
         assertThatThrownBy(() -> repository.save(continuation))
                 .isInstanceOf(DataIntegrityViolationException.class);
         assertThat(repository.findById(continuation.id())).contains(continuation);
+    }
+
+    @Test
+    void schemaRejectsResolvedAtOutsideActiveLifetime() {
+        assertThatThrownBy(() -> insertContinuation(
+                        UUID.randomUUID(),
+                        1,
+                        "{}",
+                        CREATED_AT,
+                        EXPIRES_AT,
+                        Optional.of(CREATED_AT.minusMillis(1))))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> insertContinuation(
+                        UUID.randomUUID(),
+                        1,
+                        "{}",
+                        CREATED_AT,
+                        EXPIRES_AT,
+                        Optional.of(EXPIRES_AT)))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> insertContinuation(
+                        UUID.randomUUID(),
+                        1,
+                        "{}",
+                        CREATED_AT,
+                        EXPIRES_AT,
+                        Optional.of(EXPIRES_AT.plusNanos(1))))
+                .isInstanceOf(DataIntegrityViolationException.class);
     }
 
     @Test
@@ -170,6 +206,103 @@ class JdbcProcessEffortClarificationContinuationRepositoryIntegrationTest
     }
 
     @Test
+    void savedAndV2ShapeContinuationsRemainUnresolved() {
+        ProcessEffortClarificationContinuation saved =
+                continuation(contextWithVolumeGap(), CREATED_AT, EXPIRES_AT);
+        repository.save(saved);
+        String payload = payloadText();
+
+        ProcessEffortClarificationContinuation found = repository.findById(saved.id()).orElseThrow();
+        assertThat(resolvedAtOf(saved.id())).isEmpty();
+        assertThat(found.resolvedAt()).isEmpty();
+        assertThat(found.isResolved()).isFalse();
+
+        cleanDatabase();
+        ProcessEffortClarificationContinuationId v2ShapeId =
+                ProcessEffortClarificationContinuationId.newId();
+        insertContinuation(v2ShapeId.value(), 1, payload, CREATED_AT, EXPIRES_AT);
+
+        ProcessEffortClarificationContinuation v2Shape = repository.findById(v2ShapeId).orElseThrow();
+        assertThat(resolvedAtOf(v2ShapeId)).isEmpty();
+        assertThat(v2Shape.resolvedAt()).isEmpty();
+        assertThat(v2Shape.isResolved()).isFalse();
+    }
+
+    @Test
+    void markResolvedIfActiveTransitionsOneActiveContinuationOnlyOnce() {
+        ProcessEffortClarificationContinuation saved =
+                continuation(contextWithVolumeGap(), CREATED_AT, EXPIRES_AT);
+        Instant resolvedAt = CREATED_AT.plusSeconds(90);
+        repository.save(saved);
+
+        assertThat(repository.markResolvedIfActive(saved.id(), resolvedAt)).isTrue();
+
+        ProcessEffortClarificationContinuation resolved = repository.findById(saved.id()).orElseThrow();
+        assertThat(resolved.resolvedAt()).contains(resolvedAt);
+        assertThat(resolvedAtOf(saved.id())).contains(resolvedAt);
+        assertThat(resolved.isResolved()).isTrue();
+
+        assertThat(repository.markResolvedIfActive(saved.id(), resolvedAt.plusSeconds(1))).isFalse();
+        assertThat(repository.findById(saved.id()).orElseThrow().resolvedAt()).contains(resolvedAt);
+    }
+
+    @Test
+    void markResolvedIfActiveReturnsFalseForExpiredOrMissingContinuation() {
+        Instant expiredAt = CREATED_AT.plusSeconds(60);
+        ProcessEffortClarificationContinuation expired =
+                continuation(contextWithVolumeGap(), CREATED_AT, expiredAt);
+        repository.save(expired);
+
+        assertThat(repository.markResolvedIfActive(expired.id(), expiredAt)).isFalse();
+        assertThat(repository.findById(expired.id())).contains(expired);
+        assertThat(repository.markResolvedIfActive(
+                        ProcessEffortClarificationContinuationId.newId(),
+                        CREATED_AT.plusSeconds(1)))
+                .isFalse();
+    }
+
+    @Test
+    void resolvedStoredContinuationIsReturnedWithoutFiltering() {
+        ProcessEffortClarificationContinuation saved =
+                continuation(contextWithVolumeGap(), CREATED_AT, EXPIRES_AT);
+        Instant resolvedAt = CREATED_AT.plusSeconds(1);
+        repository.save(saved);
+        assertThat(repository.markResolvedIfActive(saved.id(), resolvedAt)).isTrue();
+
+        ProcessEffortClarificationContinuation found = repository.findById(saved.id()).orElseThrow();
+        assertThat(found.id()).isEqualTo(saved.id());
+        assertThat(found.resolvedAt()).contains(resolvedAt);
+        assertThat(found.isResolved()).isTrue();
+    }
+
+    @Test
+    void concurrentResolutionAttemptsYieldExactlyOneSuccessfulTransition() throws Exception {
+        ProcessEffortClarificationContinuation saved =
+                continuation(contextWithVolumeGap(), CREATED_AT, EXPIRES_AT);
+        Instant resolvedAt = CREATED_AT.plusSeconds(5);
+        repository.save(saved);
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            List<Future<Boolean>> attempts = new ArrayList<>();
+            for (int i = 0; i < 2; i++) {
+                attempts.add(executor.submit(markResolvedAttempt(saved.id(), resolvedAt, ready, start)));
+            }
+            assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+
+            assertThat(results(attempts))
+                    .containsExactlyInAnyOrder(true, false);
+            assertThat(repository.findById(saved.id()).orElseThrow().resolvedAt())
+                    .contains(resolvedAt);
+        } finally {
+            executor.shutdownNow();
+            assertThat(executor.awaitTermination(5, TimeUnit.SECONDS)).isTrue();
+        }
+    }
+
+    @Test
     void expiredStoredContinuationIsReturnedWithoutCleanupOrFiltering() {
         Instant expiredAt = CREATED_AT.plusSeconds(60);
         ProcessEffortClarificationContinuation saved =
@@ -204,9 +337,11 @@ class JdbcProcessEffortClarificationContinuationRepositoryIntegrationTest
         repository.save(continuation(contextWithBothGaps(), CREATED_AT, EXPIRES_AT));
 
         assertThat(tableColumns()).doesNotContain("business_item_ref");
+        assertThat(contextSchemaVersion()).isEqualTo(1);
         assertThat(payloadText())
                 .contains("ticket-ref")
-                .contains("businessItemRef");
+                .contains("businessItemRef")
+                .doesNotContain("resolvedAt", "resolved_at");
     }
 
     @Test
@@ -292,6 +427,11 @@ class JdbcProcessEffortClarificationContinuationRepositoryIntegrationTest
         assertThat(resolver).doesNotContain("ProcessEffortClarificationContinuation", "Repository", "DerivationVerifier");
         assertThat(materializer.split("\\.multiply\\(", -1).length - 1).isEqualTo(1);
         assertThat(repositorySource).doesNotContain("DELETE", "@Scheduled", "cleanup");
+        assertThat(repositorySource.split("UPDATE process_effort_clarification_continuation", -1).length - 1)
+                .isEqualTo(1);
+        assertThat(repositorySource)
+                .contains("AND resolved_at IS NULL", "AND expires_at > :resolved_at")
+                .doesNotContain("synchronized", "ReentrantLock");
     }
 
     private void assertContinuationEnvelope(
@@ -377,7 +517,28 @@ class JdbcProcessEffortClarificationContinuationRepositoryIntegrationTest
                 ProcessEffortClarificationContinuationId.newId(),
                 context,
                 createdAt,
-                expiresAt);
+                expiresAt,
+                Optional.empty());
+    }
+
+    private Callable<Boolean> markResolvedAttempt(
+            ProcessEffortClarificationContinuationId id,
+            Instant resolvedAt,
+            CountDownLatch ready,
+            CountDownLatch start) {
+        return () -> {
+            ready.countDown();
+            assertThat(start.await(5, TimeUnit.SECONDS)).isTrue();
+            return repository.markResolvedIfActive(id, resolvedAt);
+        };
+    }
+
+    private List<Boolean> results(List<Future<Boolean>> attempts) throws Exception {
+        List<Boolean> results = new ArrayList<>();
+        for (Future<Boolean> attempt : attempts) {
+            results.add(attempt.get());
+        }
+        return results;
     }
 
     private ProcessEffortClarificationContext contextWithVolumeGap() {
@@ -550,6 +711,40 @@ class JdbcProcessEffortClarificationContinuationRepositoryIntegrationTest
                 .update();
     }
 
+    private void insertContinuation(
+            UUID id,
+            int schemaVersion,
+            String payload,
+            Instant createdAt,
+            Instant expiresAt,
+            Optional<Instant> resolvedAt) {
+        jdbcClient.sql("""
+                        INSERT INTO process_effort_clarification_continuation (
+                            id,
+                            context_schema_version,
+                            context_payload,
+                            created_at,
+                            expires_at,
+                            resolved_at
+                        )
+                        VALUES (
+                            :id,
+                            :context_schema_version,
+                            CAST(:context_payload AS jsonb),
+                            :created_at,
+                            :expires_at,
+                            :resolved_at
+                        )
+                        """)
+                .param("id", id)
+                .param("context_schema_version", schemaVersion)
+                .param("context_payload", payload)
+                .param("created_at", timestamp(createdAt))
+                .param("expires_at", timestamp(expiresAt))
+                .param("resolved_at", resolvedAt.map(this::timestamp).orElse(null))
+                .update();
+    }
+
     private OffsetDateTime timestamp(Instant instant) {
         return OffsetDateTime.ofInstant(instant, ZoneOffset.UTC);
     }
@@ -606,6 +801,28 @@ class JdbcProcessEffortClarificationContinuationRepositoryIntegrationTest
                         LIMIT 1
                         """)
                 .query(String.class)
+                .single();
+    }
+
+    private Optional<Instant> resolvedAtOf(ProcessEffortClarificationContinuationId id) {
+        return jdbcClient.sql("""
+                        SELECT resolved_at
+                        FROM process_effort_clarification_continuation
+                        WHERE id = :id
+                        """)
+                .param("id", id.value())
+                .query(OffsetDateTime.class)
+                .optional()
+                .map(OffsetDateTime::toInstant);
+    }
+
+    private int contextSchemaVersion() {
+        return jdbcClient.sql("""
+                        SELECT context_schema_version
+                        FROM process_effort_clarification_continuation
+                        LIMIT 1
+                        """)
+                .query(Integer.class)
                 .single();
     }
 

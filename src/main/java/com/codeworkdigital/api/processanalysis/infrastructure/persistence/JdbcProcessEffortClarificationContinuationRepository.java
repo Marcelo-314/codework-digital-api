@@ -6,6 +6,7 @@ import com.codeworkdigital.api.processanalysis.application.ProcessEffortClarific
 import com.codeworkdigital.api.processanalysis.application.ProcessEffortClarificationContext;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Objects;
@@ -25,7 +26,8 @@ public class JdbcProcessEffortClarificationContinuationRepository
             context_schema_version,
             context_payload,
             created_at,
-            expires_at
+            expires_at,
+            resolved_at
             """;
 
     private final JdbcClient jdbcClient;
@@ -47,14 +49,16 @@ public class JdbcProcessEffortClarificationContinuationRepository
                             context_schema_version,
                             context_payload,
                             created_at,
-                            expires_at
+                            expires_at,
+                            resolved_at
                         )
                         VALUES (
                             :id,
                             :context_schema_version,
                             CAST(:context_payload AS jsonb),
                             :created_at,
-                            :expires_at
+                            :expires_at,
+                            NULL
                         )
                         """)
                 .param("id", continuation.id().value())
@@ -79,6 +83,25 @@ public class JdbcProcessEffortClarificationContinuationRepository
                 .optional();
     }
 
+    @Override
+    public boolean markResolvedIfActive(
+            ProcessEffortClarificationContinuationId id,
+            Instant resolvedAt) {
+        Objects.requireNonNull(id, "id");
+        Objects.requireNonNull(resolvedAt, "resolvedAt");
+        int updated = jdbcClient.sql("""
+                        UPDATE process_effort_clarification_continuation
+                        SET resolved_at = :resolved_at
+                        WHERE id = :id
+                          AND resolved_at IS NULL
+                          AND expires_at > :resolved_at
+                        """)
+                .param("id", id.value())
+                .param("resolved_at", OffsetDateTime.ofInstant(resolvedAt, ZoneOffset.UTC))
+                .update();
+        return updated == 1;
+    }
+
     private ProcessEffortClarificationContinuation mapRow(ResultSet resultSet, int rowNumber) throws SQLException {
         ProcessEffortClarificationContinuationId id =
                 new ProcessEffortClarificationContinuationId(resultSet.getObject("id", java.util.UUID.class));
@@ -95,7 +118,9 @@ public class JdbcProcessEffortClarificationContinuationRepository
                 id,
                 context,
                 resultSet.getObject("created_at", OffsetDateTime.class).toInstant(),
-                resultSet.getObject("expires_at", OffsetDateTime.class).toInstant());
+                resultSet.getObject("expires_at", OffsetDateTime.class).toInstant(),
+                Optional.ofNullable(resultSet.getObject("resolved_at", OffsetDateTime.class))
+                        .map(OffsetDateTime::toInstant));
     }
 
     private String serializeContext(
