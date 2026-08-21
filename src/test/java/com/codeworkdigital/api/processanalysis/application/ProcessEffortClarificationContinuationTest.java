@@ -196,21 +196,19 @@ class ProcessEffortClarificationContinuationTest {
     }
 
     @Test
-    void noPersistenceAdapterDatabaseTableOrMigrationIsIntroduced() throws Exception {
-        List<String> productionFiles = Files.walk(Path.of("src/main/java"))
-                .map(Path::toString)
-                .toList();
-        List<String> migrationFiles = Files.walk(Path.of("src/main/resources/db/migration"))
-                .map(Path::toString)
-                .toList();
+    void continuationPersistenceIsNotWiredIntoCurrentHttpOrApplicationFlow() throws Exception {
+        String controller = Files.readString(Path.of(
+                "src/main/java/com/codeworkdigital/api/processanalysis/api/ProcessAnalysisController.java"));
+        String applicationService = Files.readString(Path.of(
+                "src/main/java/com/codeworkdigital/api/processanalysis/application/ProcessAnalysisApplicationService.java"));
 
-        assertThat(productionFiles)
-                .noneMatch(path -> path.contains("JdbcProcessEffortClarificationContinuation"))
-                .noneMatch(path -> path.contains("ProcessEffortClarificationContinuation")
-                        && path.contains("infrastructure"));
-        assertThat(migrationFiles)
-                .noneMatch(path -> path.contains("process_effort_clarification")
-                        || path.contains("clarification_continuation"));
+        assertThat(controller).doesNotContain(
+                "ProcessEffortClarificationContinuation",
+                "ProcessEffortClarificationContinuationRepository",
+                "analysisId");
+        assertThat(applicationService).doesNotContain(
+                "ProcessEffortClarificationContinuation",
+                "ProcessEffortClarificationContinuationRepository");
     }
 
     @Test
