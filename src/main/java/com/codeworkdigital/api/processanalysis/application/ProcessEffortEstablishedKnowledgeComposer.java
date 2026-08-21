@@ -36,8 +36,8 @@ public class ProcessEffortEstablishedKnowledgeComposer {
         appendUnsupportedFacts(facts, clarificationKnowledge.knownFacts());
 
         Map<ProcessEvidenceArtifactId, ProcessEvidenceArtifact> artifactsById = new HashMap<>();
-        sourceKnowledge.evidenceBase().artifacts().forEach(artifact -> artifactsById.put(artifact.id(), artifact));
-        clarificationKnowledge.evidenceBase().artifacts().forEach(artifact -> artifactsById.put(artifact.id(), artifact));
+        sourceKnowledge.evidenceBase().artifacts().forEach(artifact -> putUniqueArtifact(artifactsById, artifact));
+        clarificationKnowledge.evidenceBase().artifacts().forEach(artifact -> putUniqueArtifact(artifactsById, artifact));
 
         List<ProcessEvidenceArtifact> artifacts = new ArrayList<>();
         appendReferencedArtifact(artifacts, artifactsById, facts, ProcessEffortSourceKnowledgeMapper.SOURCE_ARTIFACT_ID);
@@ -53,6 +53,16 @@ public class ProcessEffortEstablishedKnowledgeComposer {
                 ProcessEffortClarificationAnswerMaterializer.EFFORT_CLARIFICATION_ARTIFACT_ID);
 
         return new ProcessEffortEstablishedKnowledge(new ProcessEvidenceBase(artifacts), facts);
+    }
+
+    private static void putUniqueArtifact(
+            Map<ProcessEvidenceArtifactId, ProcessEvidenceArtifact> artifactsById,
+            ProcessEvidenceArtifact artifact) {
+        ProcessEvidenceArtifact existing = artifactsById.putIfAbsent(artifact.id(), artifact);
+        if (existing != null) {
+            throw new IllegalArgumentException("duplicate established effort evidence artifact id: "
+                    + artifact.id().value());
+        }
     }
 
     private static void appendCanonicalFact(

@@ -20,7 +20,12 @@ import com.codeworkdigital.api.processanalysis.domain.ProcessKnownFact;
 import com.codeworkdigital.api.processanalysis.domain.ProcessKnownFactId;
 import com.codeworkdigital.api.processanalysis.domain.ProcessQuantityProjection;
 import com.codeworkdigital.api.processanalysis.domain.ProcessReportingPeriodUnit;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
 import java.math.BigDecimal;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -132,6 +137,62 @@ class ProcessEffortEstablishedKnowledgeComposerTest {
         assertThat(effort.evidenceArtifactIds())
                 .containsExactly(ProcessEffortSourceKnowledgeMapper.SOURCE_ARTIFACT_ID)
                 .doesNotContain(ProcessEffortClarificationAnswerMaterializer.EFFORT_CLARIFICATION_ARTIFACT_ID);
+    }
+
+    @Test
+    void duplicateArtifactIdAcrossSourceAndClarificationIsRejected() {
+        assertThatThrownBy(() -> compose(
+                        sourceKnowledge(List.of(sourceEffort("2"))),
+                        clarificationKnowledge(
+                                List.of(clarificationVolume("4000")),
+                                List.of(
+                                        artifact(
+                                                ProcessEffortSourceKnowledgeMapper.SOURCE_ARTIFACT_ID,
+                                                "Clarification artifact using source identity"),
+                                        volumeClarificationArtifact()))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("duplicate established effort evidence artifact id: source-process-description");
+    }
+
+    @Test
+    void structurallyEqualDuplicateArtifactAcrossSourceAndClarificationIsRejected() {
+        ProcessEvidenceArtifact duplicateSourceArtifact = artifact(
+                ProcessEffortSourceKnowledgeMapper.SOURCE_ARTIFACT_ID,
+                "Process description submitted for this analysis");
+
+        assertThatThrownBy(() -> compose(
+                        sourceKnowledgeWithOriginalArtifactButNoFacts(),
+                        clarificationKnowledge(List.of(), List.of(duplicateSourceArtifact))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("duplicate established effort evidence artifact id: source-process-description");
+    }
+
+    @Test
+    void duplicateArtifactIdAcrossSourceAndClarificationWithDifferentDescriptionsIsRejected() {
+        assertThatThrownBy(() -> compose(
+                        sourceKnowledgeWithOriginalArtifactButNoFacts(),
+                        clarificationKnowledge(
+                                List.of(),
+                                List.of(artifact(
+                                        ProcessEffortSourceKnowledgeMapper.SOURCE_ARTIFACT_ID,
+                                        "Different clarification description")))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("duplicate established effort evidence artifact id: source-process-description");
+    }
+
+    @Test
+    void unreferencedDuplicateArtifactIdAcrossSourceAndClarificationIsRejected() {
+        assertThatThrownBy(() -> compose(
+                        sourceKnowledgeWithOriginalArtifactButNoFacts(),
+                        clarificationKnowledge(
+                                List.of(clarificationVolume("4000")),
+                                List.of(
+                                        artifact(
+                                                ProcessEffortSourceKnowledgeMapper.SOURCE_ARTIFACT_ID,
+                                                "Unreferenced duplicate source identity"),
+                                        volumeClarificationArtifact()))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("duplicate established effort evidence artifact id: source-process-description");
     }
 
     @Test
@@ -277,6 +338,38 @@ class ProcessEffortEstablishedKnowledgeComposerTest {
         assertThat(result.resultFact().evidenceArtifactIds()).isEmpty();
     }
 
+    @Test
+    void productionRuntimeStillCallsModelAnalyzeExactlyOnce() throws Exception {
+        String source = Files.readString(Path.of(
+                "src/main/java/com/codeworkdigital/api/processanalysis/application/ProcessAnalysisApplicationService.java"));
+
+        assertThat(source.split("modelClient\\.analyze\\(", -1).length - 1).isEqualTo(1);
+    }
+
+    @Test
+    void productionP06MultiplicationRemainsImplementedOnce() throws Exception {
+        String source = Files.readString(Path.of(
+                "src/main/java/com/codeworkdigital/api/processanalysis/application/ProcessEffortPerReportingPeriodMaterializer.java"));
+
+        assertThat(source.split("\\.multiply\\(", -1).length - 1).isEqualTo(1);
+    }
+
+    @Test
+    void productionRuntimeTypesStillDoNotDependOnDerivationVerifier() {
+        assertThat(declaredFieldTypes(ProcessAnalysisApplicationService.class))
+                .doesNotContain(ProcessEffortPerReportingPeriodDerivationVerifier.class);
+        assertThat(constructorParameterTypes(ProcessAnalysisApplicationService.class))
+                .doesNotContain(ProcessEffortPerReportingPeriodDerivationVerifier.class);
+        assertThat(declaredFieldTypes(ProcessEffortPerReportingPeriodMaterializer.class))
+                .doesNotContain(ProcessEffortPerReportingPeriodDerivationVerifier.class);
+        assertThat(constructorParameterTypes(ProcessEffortPerReportingPeriodMaterializer.class))
+                .doesNotContain(ProcessEffortPerReportingPeriodDerivationVerifier.class);
+        assertThat(declaredFieldTypes(ProcessEffortEstablishedKnowledgeComposer.class))
+                .doesNotContain(ProcessEffortPerReportingPeriodDerivationVerifier.class);
+        assertThat(constructorParameterTypes(ProcessEffortEstablishedKnowledgeComposer.class))
+                .doesNotContain(ProcessEffortPerReportingPeriodDerivationVerifier.class);
+    }
+
     private ProcessEffortEstablishedKnowledge compose(
             ProcessEffortSourceKnowledge sourceKnowledge,
             ProcessEffortClarificationKnowledge clarificationKnowledge) {
@@ -322,6 +415,12 @@ class ProcessEffortEstablishedKnowledgeComposerTest {
         return new ProcessEffortClarificationKnowledge(
                 new ProcessEvidenceBase(List.of(volumeClarificationArtifact(), effortClarificationArtifact())),
                 facts);
+    }
+
+    private ProcessEffortClarificationKnowledge clarificationKnowledge(
+            List<ProcessKnownFact> facts,
+            List<ProcessEvidenceArtifact> artifacts) {
+        return new ProcessEffortClarificationKnowledge(new ProcessEvidenceBase(artifacts), facts);
     }
 
     private ProcessEffortClarificationKnowledge emptyClarificationKnowledge() {
@@ -388,23 +487,40 @@ class ProcessEffortEstablishedKnowledgeComposerTest {
     }
 
     private ProcessEvidenceArtifact sourceArtifact() {
-        return new ProcessEvidenceArtifact(
+        return artifact(
                 ProcessEffortSourceKnowledgeMapper.SOURCE_ARTIFACT_ID,
-                ProcessEvidenceArtifactKind.SOURCE_MATERIAL,
                 "Process description submitted for this analysis");
     }
 
     private ProcessEvidenceArtifact volumeClarificationArtifact() {
-        return new ProcessEvidenceArtifact(
+        return artifact(
                 ProcessEffortClarificationAnswerMaterializer.VOLUME_CLARIFICATION_ARTIFACT_ID,
-                ProcessEvidenceArtifactKind.SOURCE_MATERIAL,
                 "Self-reported clarification answer for P06 volume per reporting period");
     }
 
     private ProcessEvidenceArtifact effortClarificationArtifact() {
-        return new ProcessEvidenceArtifact(
+        return artifact(
                 ProcessEffortClarificationAnswerMaterializer.EFFORT_CLARIFICATION_ARTIFACT_ID,
-                ProcessEvidenceArtifactKind.SOURCE_MATERIAL,
                 "Self-reported clarification answer for P06 effort per business item");
+    }
+
+    private ProcessEvidenceArtifact artifact(ProcessEvidenceArtifactId id, String description) {
+        return new ProcessEvidenceArtifact(
+                id,
+                ProcessEvidenceArtifactKind.SOURCE_MATERIAL,
+                description);
+    }
+
+    private List<Class<?>> declaredFieldTypes(Class<?> type) {
+        return Arrays.stream(type.getDeclaredFields())
+                .map(Field::getType)
+                .toList();
+    }
+
+    private List<Class<?>> constructorParameterTypes(Class<?> type) {
+        return Arrays.stream(type.getDeclaredConstructors())
+                .map(Constructor::getParameterTypes)
+                .flatMap(Arrays::stream)
+                .toList();
     }
 }
