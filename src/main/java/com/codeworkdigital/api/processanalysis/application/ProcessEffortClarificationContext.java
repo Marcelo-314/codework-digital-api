@@ -5,13 +5,13 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
-record ProcessEffortClarificationContext(
+public record ProcessEffortClarificationContext(
         ProcessEffortEvidence effortEvidence,
         ProcessEffortSourceKnowledge sourceKnowledge,
         ProcessEffortMaterialityAssessment materialityAssessment,
         List<ProcessEffortMaterialityEvidenceGap> actionableGaps) {
 
-    ProcessEffortClarificationContext {
+    public ProcessEffortClarificationContext {
         effortEvidence = Objects.requireNonNull(effortEvidence, "effortEvidence");
         sourceKnowledge = Objects.requireNonNull(sourceKnowledge, "sourceKnowledge");
         materialityAssessment = Objects.requireNonNull(materialityAssessment, "materialityAssessment");
@@ -29,7 +29,7 @@ record ProcessEffortClarificationContext(
         requireNoDuplicateGapKinds(actionableGaps);
     }
 
-    static ProcessEffortClarificationContext from(ProcessAnalysisResult result) {
+    public static ProcessEffortClarificationContext from(ProcessAnalysisResult result) {
         Objects.requireNonNull(result, "result");
         if (!result.understanding().isProcessIdentified()) {
             throw new IllegalArgumentException("baseline must identify a process");

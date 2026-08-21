@@ -60,7 +60,8 @@ public class ProcessEffortEvidenceProjectionMapper {
         return Optional.of(new ProcessQuantityProjection(
                 quantity.magnitude(),
                 new ProcessBusinessItemPerReportingPeriodUnit(
-                        // Local to this single process-analysis result; never persisted or compared across analyses.
+                        // Analysis-local; may be retained only inside trusted server-side continuation state.
+                        // Never public, global, or comparable across different analyses.
                         new ProcessBusinessItemUnitId(quantity.businessItemRef()),
                         ProcessReportingPeriodUnit.MONTH)));
     }
@@ -82,7 +83,8 @@ public class ProcessEffortEvidenceProjectionMapper {
                 quantity.magnitude(),
                 new ProcessEffortPerBusinessItemUnit(
                         ProcessEffortDurationUnit.MINUTE,
-                        // Local to this single process-analysis result; never persisted or compared across analyses.
+                        // Analysis-local; may be retained only inside trusted server-side continuation state.
+                        // Never public, global, or comparable across different analyses.
                         new ProcessBusinessItemUnitId(quantity.businessItemRef()))));
     }
 
