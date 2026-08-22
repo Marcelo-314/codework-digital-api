@@ -78,7 +78,7 @@ public class ProcessEffortClarificationAnswerMaterializer {
         }
         requireActionable(actionableKinds, answer.kind());
         ProcessEffortEvidenceQuantity quantity = effortEvidence.volumePerReportingPeriod();
-        requireAnswerableQuantity(quantity, answer.kind());
+        requireAnswerableVolume(quantity, answer.kind());
 
         ProcessQuantityProjection projection = new ProcessQuantityProjection(
                 answer.magnitude(),
@@ -108,7 +108,7 @@ public class ProcessEffortClarificationAnswerMaterializer {
         }
         requireActionable(actionableKinds, answer.kind());
         ProcessEffortEvidenceQuantity quantity = effortEvidence.effortPerBusinessItem();
-        requireAnswerableQuantity(quantity, answer.kind());
+        requireAnswerableEffort(quantity, answer.kind());
 
         ProcessQuantityProjection projection = new ProcessQuantityProjection(
                 answer.magnitude(),
@@ -158,14 +158,76 @@ public class ProcessEffortClarificationAnswerMaterializer {
         }
     }
 
-    private static void requireAnswerableQuantity(
+    private static void requireAnswerableVolume(
             ProcessEffortEvidenceQuantity quantity,
             ProcessEffortMaterialityEvidenceGapKind kind) {
-        if (quantity.status() != ProcessEffortEvidenceQuantityStatus.ABSENT
-                || isBlank(quantity.businessItemRef())
-                || isBlank(quantity.businessItemLabel())) {
+        if (!answerableVolumeTarget(quantity)) {
             throw new IllegalArgumentException("clarification answer has no answerable evidence context: " + kind);
         }
+    }
+
+    private static void requireAnswerableEffort(
+            ProcessEffortEvidenceQuantity quantity,
+            ProcessEffortMaterialityEvidenceGapKind kind) {
+        if (!answerableEffortTarget(quantity)) {
+            throw new IllegalArgumentException("clarification answer has no answerable evidence context: " + kind);
+        }
+    }
+
+    private static boolean answerableVolumeTarget(ProcessEffortEvidenceQuantity quantity) {
+        if (quantity == null) {
+            return false;
+        }
+        return switch (quantity.status()) {
+            case ABSENT -> hasBusinessItemContext(quantity);
+            case APPROXIMATE -> answerableApproximateTarget(quantity)
+                    && quantity.reportingPeriod() == ProcessReportingPeriodUnit.MONTH
+                    && quantity.effortDuration() == null;
+            case RANGE -> answerableRangeTarget(quantity)
+                    && quantity.reportingPeriod() == ProcessReportingPeriodUnit.MONTH
+                    && quantity.effortDuration() == null;
+            case EXACT, UNSUPPORTED_UNIT -> false;
+        };
+    }
+
+    private static boolean answerableEffortTarget(ProcessEffortEvidenceQuantity quantity) {
+        if (quantity == null) {
+            return false;
+        }
+        return switch (quantity.status()) {
+            case ABSENT -> hasBusinessItemContext(quantity);
+            case APPROXIMATE -> answerableApproximateTarget(quantity)
+                    && quantity.reportingPeriod() == null
+                    && quantity.effortDuration() == ProcessEffortDurationUnit.MINUTE;
+            case RANGE -> answerableRangeTarget(quantity)
+                    && quantity.reportingPeriod() == null
+                    && quantity.effortDuration() == ProcessEffortDurationUnit.MINUTE;
+            case EXACT, UNSUPPORTED_UNIT -> false;
+        };
+    }
+
+    private static boolean answerableApproximateTarget(ProcessEffortEvidenceQuantity quantity) {
+        return hasBusinessItemContext(quantity)
+                && quantity.magnitude() != null
+                && quantity.magnitude().signum() >= 0
+                && quantity.minMagnitude() == null
+                && quantity.maxMagnitude() == null;
+    }
+
+    private static boolean answerableRangeTarget(ProcessEffortEvidenceQuantity quantity) {
+        return hasBusinessItemContext(quantity)
+                && quantity.magnitude() == null
+                && quantity.minMagnitude() != null
+                && quantity.maxMagnitude() != null
+                && quantity.minMagnitude().signum() >= 0
+                && quantity.maxMagnitude().signum() >= 0
+                && quantity.minMagnitude().compareTo(quantity.maxMagnitude()) <= 0;
+    }
+
+    private static boolean hasBusinessItemContext(ProcessEffortEvidenceQuantity quantity) {
+        return quantity != null
+                && !isBlank(quantity.businessItemRef())
+                && !isBlank(quantity.businessItemLabel());
     }
 
     private static boolean isBlank(String value) {

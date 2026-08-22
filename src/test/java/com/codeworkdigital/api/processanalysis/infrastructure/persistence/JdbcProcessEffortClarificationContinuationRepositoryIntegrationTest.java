@@ -208,6 +208,43 @@ class JdbcProcessEffortClarificationContinuationRepositoryIntegrationTest
     }
 
     @Test
+    void roundTripsApproximateAndRangeEvidenceFieldsInContinuationContext() {
+        ProcessEffortClarificationContinuation saved =
+                continuation(contextWithNonExactGaps(), CREATED_AT, EXPIRES_AT);
+
+        repository.save(saved);
+
+        ProcessEffortClarificationContinuation found = repository.findById(saved.id()).orElseThrow();
+        assertContinuationEnvelope(found, saved);
+        ProcessEffortEvidenceQuantity volume = found.context().effortEvidence().volumePerReportingPeriod();
+        ProcessEffortEvidenceQuantity effort = found.context().effortEvidence().effortPerBusinessItem();
+        assertThat(volume.status()).isEqualTo(ProcessEffortEvidenceQuantityStatus.APPROXIMATE);
+        assertThat(volume.magnitude()).isEqualByComparingTo("4000");
+        assertThat(volume.minMagnitude()).isNull();
+        assertThat(volume.maxMagnitude()).isNull();
+        assertThat(volume.businessItemRef()).isEqualTo("ticket-ref");
+        assertThat(volume.businessItemLabel()).isEqualTo("ticket");
+        assertThat(volume.reportingPeriod()).isEqualTo(ProcessReportingPeriodUnit.MONTH);
+        assertThat(volume.effortDuration()).isNull();
+        assertThat(volume.evidenceText()).isEqualTo("about 4000 tickets per month");
+        assertThat(effort.status()).isEqualTo(ProcessEffortEvidenceQuantityStatus.RANGE);
+        assertThat(effort.magnitude()).isNull();
+        assertThat(effort.minMagnitude()).isEqualByComparingTo("1");
+        assertThat(effort.maxMagnitude()).isEqualByComparingTo("3");
+        assertThat(effort.businessItemRef()).isEqualTo("ticket-ref");
+        assertThat(effort.businessItemLabel()).isEqualTo("ticket");
+        assertThat(effort.reportingPeriod()).isNull();
+        assertThat(effort.effortDuration()).isEqualTo(ProcessEffortDurationUnit.MINUTE);
+        assertThat(effort.evidenceText()).isEqualTo("between 1 and 3 minutes per ticket");
+        assertThat(found.context().actionableGaps())
+                .extracting(ProcessEffortMaterialityEvidenceGap::kind)
+                .containsExactly(
+                        ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD,
+                        ProcessEffortMaterialityEvidenceGapKind.EFFORT_PER_BUSINESS_ITEM);
+        assertThat(contextSchemaVersion()).isEqualTo(1);
+    }
+
+    @Test
     void findByIdReturnsEmptyOnlyForMissingRow() {
         assertThat(repository.findById(ProcessEffortClarificationContinuationId.newId())).isEmpty();
     }
@@ -634,6 +671,40 @@ class JdbcProcessEffortClarificationContinuationRepositoryIntegrationTest
                         gap(
                                 ProcessEffortMaterialityEvidenceGapKind.EFFORT_PER_BUSINESS_ITEM,
                                 "Cuantos minutos de esfuerzo por item de negocio procesado usas como valor de referencia?")));
+    }
+
+    private ProcessEffortClarificationContext contextWithNonExactGaps() {
+        return context(
+                new ProcessEffortEvidence(
+                        new ProcessEffortEvidenceQuantity(
+                                ProcessEffortEvidenceQuantityStatus.APPROXIMATE,
+                                new BigDecimal("4000"),
+                                null,
+                                null,
+                                "ticket-ref",
+                                "ticket",
+                                ProcessReportingPeriodUnit.MONTH,
+                                null,
+                                "about 4000 tickets per month",
+                                "approximate source wording"),
+                        new ProcessEffortEvidenceQuantity(
+                                ProcessEffortEvidenceQuantityStatus.RANGE,
+                                null,
+                                new BigDecimal("1"),
+                                new BigDecimal("3"),
+                                "ticket-ref",
+                                "ticket",
+                                null,
+                                ProcessEffortDurationUnit.MINUTE,
+                                "between 1 and 3 minutes per ticket",
+                                "range source wording")),
+                List.of(
+                        gap(
+                                ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD,
+                                "The description provides an approximate monthly volume. What exact monthly quantity do you want to use as the scalar reference value for this calculation?"),
+                        gap(
+                                ProcessEffortMaterialityEvidenceGapKind.EFFORT_PER_BUSINESS_ITEM,
+                                "The description provides a range for effort per item. How many minutes per item do you want to use as the exact scalar reference value for this calculation?")));
     }
 
     private ProcessEffortClarificationContext context(

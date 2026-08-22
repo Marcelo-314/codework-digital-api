@@ -80,6 +80,64 @@ class ProcessEffortClarificationResolverTest {
     }
 
     @Test
+    void rangeVolumeAndAbsentEffortResolveFromClarificationAnswersWithoutPromotingRange() {
+        ProcessEffortEvidence sourceEvidence = evidence(
+                rangeVolume("4", "5", "request-1", "request"),
+                absent("request-1", "request"));
+
+        ProcessEffortClarificationResolution resolution = resolver.resolve(
+                context(baseline(
+                        sourceEvidence,
+                        gap(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD),
+                        gap(ProcessEffortMaterialityEvidenceGapKind.EFFORT_PER_BUSINESS_ITEM))),
+                List.of(
+                        answer(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD, "5"),
+                        answer(ProcessEffortMaterialityEvidenceGapKind.EFFORT_PER_BUSINESS_ITEM, "12")));
+
+        assertThat(quantity(resolution.derivedResult()).magnitude()).isEqualByComparingTo("60");
+        assertThat(resolution.materialityAssessment().status())
+                .isEqualTo(ProcessEffortMaterialityAssessmentStatus.NO_MATERIAL_JUSTIFICATION_IDENTIFIED);
+        assertThat(resolution.establishedKnowledge().knownFacts())
+                .extracting(ProcessKnownFact::id)
+                .containsExactly(
+                        ProcessEffortSourceKnowledgeMapper.VOLUME_FACT_ID,
+                        ProcessEffortSourceKnowledgeMapper.EFFORT_FACT_ID);
+        assertThat(resolution.establishedKnowledge().knownFacts().get(0).evidenceArtifactIds())
+                .containsExactly(ProcessEffortClarificationAnswerMaterializer.VOLUME_CLARIFICATION_ARTIFACT_ID);
+        assertThat(resolution.establishedKnowledge().knownFacts().get(1).evidenceArtifactIds())
+                .containsExactly(ProcessEffortClarificationAnswerMaterializer.EFFORT_CLARIFICATION_ARTIFACT_ID);
+        assertThat(sourceEvidence.volumePerReportingPeriod().status())
+                .isEqualTo(ProcessEffortEvidenceQuantityStatus.RANGE);
+        assertThat(sourceEvidence.volumePerReportingPeriod().minMagnitude()).isEqualByComparingTo("4");
+        assertThat(sourceEvidence.volumePerReportingPeriod().maxMagnitude()).isEqualByComparingTo("5");
+        assertThat(volumeFact(resolution.clarificationKnowledge()).computableProjection().orElseThrow())
+                .isEqualTo(new ProcessQuantityProjection(
+                        new BigDecimal("5"),
+                        new ProcessBusinessItemPerReportingPeriodUnit(
+                                new ProcessBusinessItemUnitId("request-1"),
+                                ProcessReportingPeriodUnit.MONTH)));
+    }
+
+    @Test
+    void approximateVolumeAndExactEffortResolveWithMixedProvenance() {
+        ProcessEffortClarificationResolution resolution = resolver.resolve(
+                context(baseline(
+                        evidence(
+                                approximateVolume("4000", "ticket", "ticket"),
+                                exactEffort("2", "ticket", "ticket")),
+                        gap(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD))),
+                List.of(answer(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD, "4000")));
+
+        assertThat(quantity(resolution.derivedResult()).magnitude()).isEqualByComparingTo("8000");
+        assertThat(resolution.materialityAssessment().status())
+                .isEqualTo(ProcessEffortMaterialityAssessmentStatus.OPPORTUNITY_IDENTIFIED);
+        assertThat(resolution.establishedKnowledge().knownFacts().get(0).evidenceArtifactIds())
+                .containsExactly(ProcessEffortClarificationAnswerMaterializer.VOLUME_CLARIFICATION_ARTIFACT_ID);
+        assertThat(resolution.establishedKnowledge().knownFacts().get(1).evidenceArtifactIds())
+                .containsExactly(ProcessEffortSourceKnowledgeMapper.SOURCE_ARTIFACT_ID);
+    }
+
+    @Test
     void belowThresholdResolutionDoesNotIdentifyMaterialJustification() {
         ProcessEffortClarificationResolution resolution = resolver.resolve(
                 context(baseline(evidence(absent("ticket", "ticket"), exactEffort("2", "ticket", "ticket")),
@@ -689,6 +747,41 @@ class ProcessEffortClarificationResolverTest {
                 null,
                 ProcessEffortDurationUnit.MINUTE,
                 null,
+                null);
+    }
+
+    private ProcessEffortEvidenceQuantity approximateVolume(
+            String magnitude,
+            String businessItemRef,
+            String businessItemLabel) {
+        return new ProcessEffortEvidenceQuantity(
+                ProcessEffortEvidenceQuantityStatus.APPROXIMATE,
+                new BigDecimal(magnitude),
+                null,
+                null,
+                businessItemRef,
+                businessItemLabel,
+                ProcessReportingPeriodUnit.MONTH,
+                null,
+                "about " + magnitude + " per month",
+                null);
+    }
+
+    private ProcessEffortEvidenceQuantity rangeVolume(
+            String minMagnitude,
+            String maxMagnitude,
+            String businessItemRef,
+            String businessItemLabel) {
+        return new ProcessEffortEvidenceQuantity(
+                ProcessEffortEvidenceQuantityStatus.RANGE,
+                null,
+                new BigDecimal(minMagnitude),
+                new BigDecimal(maxMagnitude),
+                businessItemRef,
+                businessItemLabel,
+                ProcessReportingPeriodUnit.MONTH,
+                null,
+                "between " + minMagnitude + " and " + maxMagnitude + " per month",
                 null);
     }
 

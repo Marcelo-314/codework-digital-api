@@ -487,6 +487,89 @@ class ProcessAnalysisApiIntegrationTest {
     }
 
     @Test
+    void rangeVolumeAndAbsentEffortReturnTwoQuestionsEmptyReasoningAndResolveBelowThreshold() throws Exception {
+        processAnalysisModelClient.mode = FakeProcessAnalysisModelClient.Mode.RANGE_VOLUME_EFFORT_ABSENT;
+
+        Map<String, Object> initial = json(postWithLocale("EN"));
+
+        String clarificationId = assertNonNullClarificationId(initial);
+        assertClarificationQuestions(initial,
+                Map.of(
+                        "code", "VOLUME_PER_REPORTING_PERIOD",
+                        "question", "The description provides a range for monthly volume. What exact monthly quantity do you want to use as the scalar reference value for this calculation?"),
+                Map.of(
+                        "code", "EFFORT_PER_BUSINESS_ITEM",
+                        "question", "How many minutes of effort per processed business item do you use as the reference value?"));
+        assertEmptyReasoning(initial);
+        assertNoInternalAnalysisFieldsLeak(initial);
+        assertThat(lastResponseBody).doesNotContain(
+                "RANGE",
+                "minMagnitude",
+                "maxMagnitude",
+                "businessItemRef",
+                "request-1");
+
+        Map<String, Object> resolved = json(answer(clarificationId, """
+                {
+                  "answers": [
+                    {
+                      "code": "VOLUME_PER_REPORTING_PERIOD",
+                      "value": 5
+                    },
+                    {
+                      "code": "EFFORT_PER_BUSINESS_ITEM",
+                      "value": 12
+                    }
+                  ]
+                }
+                """));
+
+        assertReasoningInputs(resolved,
+                input("VOLUME_PER_REPORTING_PERIOD", "5", "BUSINESS_ITEM_PER_MONTH", "CLARIFICATION_ANSWER"),
+                input("EFFORT_PER_BUSINESS_ITEM", "12", "MINUTE_PER_BUSINESS_ITEM", "CLARIFICATION_ANSWER"));
+        assertCalculation(resolved, "60");
+        assertDecision(resolved, "BELOW_THRESHOLD", "NO_MATERIAL_JUSTIFICATION_IDENTIFIED");
+        assertThat(resolved.get("materialityOutcome")).isEqualTo("NO_MATERIAL_JUSTIFICATION_IDENTIFIED");
+        assertThat(processAnalysisModelClient.invocations).isEqualTo(1);
+    }
+
+    @Test
+    void approximateVolumeAndExactEffortKeepMixedProvenanceThroughResolution() throws Exception {
+        processAnalysisModelClient.mode = FakeProcessAnalysisModelClient.Mode.APPROXIMATE_VOLUME_EXACT_EFFORT;
+
+        Map<String, Object> initial = json(postWithLocale("EN"));
+
+        String clarificationId = assertNonNullClarificationId(initial);
+        assertClarificationQuestions(initial,
+                Map.of(
+                        "code", "VOLUME_PER_REPORTING_PERIOD",
+                        "question", "The description provides an approximate monthly volume. What exact monthly quantity do you want to use as the scalar reference value for this calculation?"));
+        assertReasoningInputs(initial,
+                input("EFFORT_PER_BUSINESS_ITEM", "2", "MINUTE_PER_BUSINESS_ITEM", "PROCESS_DESCRIPTION"));
+        assertThat(reasoning(initial).get("calculation")).isNull();
+        assertThat(reasoning(initial).get("decision")).isNull();
+
+        Map<String, Object> resolved = json(answer(clarificationId, """
+                {
+                  "answers": [
+                    {
+                      "code": "VOLUME_PER_REPORTING_PERIOD",
+                      "value": 4000
+                    }
+                  ]
+                }
+                """));
+
+        assertReasoningInputs(resolved,
+                input("VOLUME_PER_REPORTING_PERIOD", "4000", "BUSINESS_ITEM_PER_MONTH", "CLARIFICATION_ANSWER"),
+                input("EFFORT_PER_BUSINESS_ITEM", "2", "MINUTE_PER_BUSINESS_ITEM", "PROCESS_DESCRIPTION"));
+        assertCalculation(resolved, "8000");
+        assertDecision(resolved, "AT_OR_ABOVE_THRESHOLD", "OPPORTUNITY_IDENTIFIED");
+        assertNoInternalAnalysisFieldsLeak(resolved);
+        assertThat(processAnalysisModelClient.invocations).isEqualTo(1);
+    }
+
+    @Test
     void clarificationReasoningRepresentsZeroAndDecimalResults() throws Exception {
         processAnalysisModelClient.mode = FakeProcessAnalysisModelClient.Mode.BOTH_ABSENT;
         String zeroClarificationId = assertNonNullClarificationId(json(postWithLocale("EN")));
@@ -1506,6 +1589,8 @@ class ProcessAnalysisApiIntegrationTest {
             VOLUME_ABSENT,
             EFFORT_ABSENT,
             BOTH_ABSENT,
+            RANGE_VOLUME_EFFORT_ABSENT,
+            APPROXIMATE_VOLUME_EXACT_EFFORT,
             UNSUPPORTED_NON_ABSENT,
             VOLUME_ABSENT_MISMATCHED_REF,
             VOLUME_ABSENT_UNSUPPORTED_EFFORT,
@@ -1531,6 +1616,8 @@ class ProcessAnalysisApiIntegrationTest {
                         VOLUME_ABSENT,
                         EFFORT_ABSENT,
                         BOTH_ABSENT,
+                        RANGE_VOLUME_EFFORT_ABSENT,
+                        APPROXIMATE_VOLUME_EXACT_EFFORT,
                         UNSUPPORTED_NON_ABSENT,
                         VOLUME_ABSENT_MISMATCHED_REF,
                         VOLUME_ABSENT_UNSUPPORTED_EFFORT,
@@ -1595,7 +1682,20 @@ class ProcessAnalysisApiIntegrationTest {
                 case BOTH_ABSENT -> new ProcessEffortEvidence(
                         absentQuantity("item-1", "pedido"),
                         absentQuantity("item-1", "pedido"));
-                case UNSUPPORTED_NON_ABSENT -> new ProcessEffortEvidence(
+                case RANGE_VOLUME_EFFORT_ABSENT -> new ProcessEffortEvidence(
+                        new ProcessEffortEvidenceQuantity(
+                                ProcessEffortEvidenceQuantityStatus.RANGE,
+                                null,
+                                new BigDecimal("4"),
+                                new BigDecimal("5"),
+                                "request-1",
+                                "request",
+                                com.codeworkdigital.api.processanalysis.domain.ProcessReportingPeriodUnit.MONTH,
+                                null,
+                                "Recibimos unas cuatro o cinco solicitudes por mes.",
+                                null),
+                        absentQuantity("request-1", "request"));
+                case APPROXIMATE_VOLUME_EXACT_EFFORT -> new ProcessEffortEvidence(
                         new ProcessEffortEvidenceQuantity(
                                 ProcessEffortEvidenceQuantityStatus.APPROXIMATE,
                                 new BigDecimal("4000"),
@@ -1607,11 +1707,24 @@ class ProcessAnalysisApiIntegrationTest {
                                 null,
                                 "aproximadamente 4000 pedidos por mes",
                                 null),
+                        exactEffort("2", "item-1", "pedido"));
+                case UNSUPPORTED_NON_ABSENT -> new ProcessEffortEvidence(
                         new ProcessEffortEvidenceQuantity(
-                                ProcessEffortEvidenceQuantityStatus.RANGE,
+                                ProcessEffortEvidenceQuantityStatus.UNSUPPORTED_UNIT,
+                                new BigDecimal("4000"),
                                 null,
+                                null,
+                                "item-1",
+                                "pedido",
+                                com.codeworkdigital.api.processanalysis.domain.ProcessReportingPeriodUnit.MONTH,
+                                null,
+                                "aproximadamente 4000 pedidos por mes",
+                                null),
+                        new ProcessEffortEvidenceQuantity(
+                                ProcessEffortEvidenceQuantityStatus.UNSUPPORTED_UNIT,
                                 new BigDecimal("2"),
-                                new BigDecimal("4"),
+                                null,
+                                null,
                                 "item-1",
                                 "pedido",
                                 null,
@@ -1624,10 +1737,10 @@ class ProcessAnalysisApiIntegrationTest {
                 case VOLUME_ABSENT_UNSUPPORTED_EFFORT -> new ProcessEffortEvidence(
                         absentQuantity("item-1", "pedido"),
                         new ProcessEffortEvidenceQuantity(
-                                ProcessEffortEvidenceQuantityStatus.RANGE,
-                                null,
+                                ProcessEffortEvidenceQuantityStatus.UNSUPPORTED_UNIT,
                                 new BigDecimal("2"),
-                                new BigDecimal("4"),
+                                null,
+                                null,
                                 "item-1",
                                 "pedido",
                                 null,

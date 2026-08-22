@@ -101,6 +101,65 @@ class ProcessEffortClarificationAnswerMaterializerTest {
     }
 
     @Test
+    void approximateVolumeCanBeMaterializedThroughHumanClarification() {
+        ProcessEffortEvidence sourceEvidence = evidence(
+                approximateVolume("4000", "item-1", "ticket"),
+                exactEffort("2", "item-1", "ticket"));
+
+        ProcessEffortClarificationKnowledge knowledge = materializer.materialize(
+                gaps(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD),
+                sourceEvidence,
+                List.of(answer(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD, "4100")));
+
+        assertThat(volumeProjection(knowledge).magnitude()).isEqualByComparingTo("4100");
+        assertThat(sourceEvidence.volumePerReportingPeriod().status())
+                .isEqualTo(ProcessEffortEvidenceQuantityStatus.APPROXIMATE);
+        assertThat(sourceEvidence.volumePerReportingPeriod().magnitude()).isEqualByComparingTo("4000");
+        assertClarificationProvenance(knowledge, ProcessEffortClarificationAnswerMaterializer.VOLUME_CLARIFICATION_ARTIFACT_ID);
+    }
+
+    @Test
+    void rangeVolumeUsesSuppliedHumanMagnitudeWithoutMinMaxOrMidpointSubstitution() {
+        ProcessEffortEvidence sourceEvidence = evidence(
+                rangeVolume("4", "5", "item-1", "ticket"),
+                exactEffort("12", "item-1", "ticket"));
+
+        ProcessEffortClarificationKnowledge knowledge = materializer.materialize(
+                gaps(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD),
+                sourceEvidence,
+                List.of(answer(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD, "5")));
+
+        assertThat(volumeProjection(knowledge).magnitude()).isEqualByComparingTo("5");
+        assertThat(volumeProjection(knowledge).magnitude()).isNotEqualByComparingTo("4");
+        assertThat(volumeProjection(knowledge).magnitude()).isNotEqualByComparingTo("4.5");
+        assertThat(sourceEvidence.volumePerReportingPeriod().minMagnitude()).isEqualByComparingTo("4");
+        assertThat(sourceEvidence.volumePerReportingPeriod().maxMagnitude()).isEqualByComparingTo("5");
+        assertClarificationProvenance(knowledge, ProcessEffortClarificationAnswerMaterializer.VOLUME_CLARIFICATION_ARTIFACT_ID);
+    }
+
+    @Test
+    void approximateEffortCanBeMaterializedThroughHumanClarification() {
+        ProcessEffortClarificationKnowledge knowledge = materializer.materialize(
+                gaps(ProcessEffortMaterialityEvidenceGapKind.EFFORT_PER_BUSINESS_ITEM),
+                evidence(exactVolume("4000", "item-1", "ticket"), approximateEffort("2", "item-1", "ticket")),
+                List.of(answer(ProcessEffortMaterialityEvidenceGapKind.EFFORT_PER_BUSINESS_ITEM, "2.5")));
+
+        assertThat(effortProjection(knowledge).magnitude()).isEqualByComparingTo("2.5");
+        assertClarificationProvenance(knowledge, ProcessEffortClarificationAnswerMaterializer.EFFORT_CLARIFICATION_ARTIFACT_ID);
+    }
+
+    @Test
+    void rangeEffortCanBeMaterializedThroughHumanClarification() {
+        ProcessEffortClarificationKnowledge knowledge = materializer.materialize(
+                gaps(ProcessEffortMaterialityEvidenceGapKind.EFFORT_PER_BUSINESS_ITEM),
+                evidence(exactVolume("4000", "item-1", "ticket"), rangeEffort("1", "3", "item-1", "ticket")),
+                List.of(answer(ProcessEffortMaterialityEvidenceGapKind.EFFORT_PER_BUSINESS_ITEM, "3")));
+
+        assertThat(effortProjection(knowledge).magnitude()).isEqualByComparingTo("3");
+        assertClarificationProvenance(knowledge, ProcessEffortClarificationAnswerMaterializer.EFFORT_CLARIFICATION_ARTIFACT_ID);
+    }
+
+    @Test
     void volumeFactUsesMonthAndExistingBusinessItemRef() {
         ProcessQuantityProjection projection = volumeProjection(materializer.materialize(
                 gaps(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD),
@@ -199,6 +258,40 @@ class ProcessEffortClarificationAnswerMaterializerTest {
     }
 
     @Test
+    void unsupportedUnitCannotBeMaterialized() {
+        assertThatThrownBy(() -> materializer.materialize(
+                gaps(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD),
+                evidence(unsupportedVolume("4000", "item-1", "ticket"), exactEffort("2", "item-1", "ticket")),
+                List.of(answer(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD, "4000"))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("no answerable evidence context");
+        assertThatThrownBy(() -> materializer.materialize(
+                gaps(ProcessEffortMaterialityEvidenceGapKind.EFFORT_PER_BUSINESS_ITEM),
+                evidence(exactVolume("4000", "item-1", "ticket"), unsupportedEffort("2", "item-1", "ticket")),
+                List.of(answer(ProcessEffortMaterialityEvidenceGapKind.EFFORT_PER_BUSINESS_ITEM, "2"))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("no answerable evidence context");
+    }
+
+    @Test
+    void malformedApproximateOrRangeContextCannotBeMaterialized() {
+        assertThatThrownBy(() -> materializer.materialize(
+                gaps(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD),
+                evidence(rangeQuantity(ProcessEffortEvidenceQuantityStatus.APPROXIMATE, "4", "5", "item-1", "ticket", ProcessReportingPeriodUnit.MONTH, null),
+                        exactEffort("2", "item-1", "ticket")),
+                List.of(answer(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD, "4"))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("no answerable evidence context");
+        assertThatThrownBy(() -> materializer.materialize(
+                gaps(ProcessEffortMaterialityEvidenceGapKind.EFFORT_PER_BUSINESS_ITEM),
+                evidence(exactVolume("4000", "item-1", "ticket"),
+                        rangeQuantity(ProcessEffortEvidenceQuantityStatus.RANGE, "3", "1", "item-1", "ticket", null, ProcessEffortDurationUnit.MINUTE)),
+                List.of(answer(ProcessEffortMaterialityEvidenceGapKind.EFFORT_PER_BUSINESS_ITEM, "2"))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("no answerable evidence context");
+    }
+
+    @Test
     void duplicateAnswersForOneKindAreRejected() {
         assertThatThrownBy(() -> materializer.materialize(
                 gaps(ProcessEffortMaterialityEvidenceGapKind.VOLUME_PER_REPORTING_PERIOD),
@@ -289,6 +382,16 @@ class ProcessEffortClarificationAnswerMaterializerTest {
                 .orElseThrow();
     }
 
+    private void assertClarificationProvenance(
+            ProcessEffortClarificationKnowledge knowledge,
+            com.codeworkdigital.api.processanalysis.domain.ProcessEvidenceArtifactId artifactId) {
+        assertThat(knowledge.knownFacts()).allSatisfy(fact -> {
+            assertThat(fact.grounding()).isEqualTo(ProcessFactGrounding.SOURCE_STATED);
+            assertThat(fact.evidenceArtifactIds()).containsExactly(artifactId);
+            assertThat(fact.evidenceArtifactIds()).doesNotContain(ProcessEffortSourceKnowledgeMapper.SOURCE_ARTIFACT_ID);
+        });
+    }
+
     private ProcessEffortMaterialityClarificationAnswer answer(
             ProcessEffortMaterialityEvidenceGapKind kind,
             String magnitude) {
@@ -375,6 +478,125 @@ class ProcessEffortClarificationAnswerMaterializerTest {
                 null,
                 ProcessEffortDurationUnit.MINUTE,
                 null,
+                null);
+    }
+
+    private ProcessEffortEvidenceQuantity approximateVolume(
+            String magnitude,
+            String businessItemRef,
+            String businessItemLabel) {
+        return new ProcessEffortEvidenceQuantity(
+                ProcessEffortEvidenceQuantityStatus.APPROXIMATE,
+                new BigDecimal(magnitude),
+                null,
+                null,
+                businessItemRef,
+                businessItemLabel,
+                ProcessReportingPeriodUnit.MONTH,
+                null,
+                "about " + magnitude + " tickets per month",
+                null);
+    }
+
+    private ProcessEffortEvidenceQuantity approximateEffort(
+            String magnitude,
+            String businessItemRef,
+            String businessItemLabel) {
+        return new ProcessEffortEvidenceQuantity(
+                ProcessEffortEvidenceQuantityStatus.APPROXIMATE,
+                new BigDecimal(magnitude),
+                null,
+                null,
+                businessItemRef,
+                businessItemLabel,
+                null,
+                ProcessEffortDurationUnit.MINUTE,
+                "about " + magnitude + " minutes per ticket",
+                null);
+    }
+
+    private ProcessEffortEvidenceQuantity rangeVolume(
+            String minMagnitude,
+            String maxMagnitude,
+            String businessItemRef,
+            String businessItemLabel) {
+        return rangeQuantity(
+                ProcessEffortEvidenceQuantityStatus.RANGE,
+                minMagnitude,
+                maxMagnitude,
+                businessItemRef,
+                businessItemLabel,
+                ProcessReportingPeriodUnit.MONTH,
+                null);
+    }
+
+    private ProcessEffortEvidenceQuantity rangeEffort(
+            String minMagnitude,
+            String maxMagnitude,
+            String businessItemRef,
+            String businessItemLabel) {
+        return rangeQuantity(
+                ProcessEffortEvidenceQuantityStatus.RANGE,
+                minMagnitude,
+                maxMagnitude,
+                businessItemRef,
+                businessItemLabel,
+                null,
+                ProcessEffortDurationUnit.MINUTE);
+    }
+
+    private ProcessEffortEvidenceQuantity unsupportedVolume(
+            String magnitude,
+            String businessItemRef,
+            String businessItemLabel) {
+        return new ProcessEffortEvidenceQuantity(
+                ProcessEffortEvidenceQuantityStatus.UNSUPPORTED_UNIT,
+                new BigDecimal(magnitude),
+                null,
+                null,
+                businessItemRef,
+                businessItemLabel,
+                ProcessReportingPeriodUnit.MONTH,
+                null,
+                null,
+                "unsupported volume unit");
+    }
+
+    private ProcessEffortEvidenceQuantity unsupportedEffort(
+            String magnitude,
+            String businessItemRef,
+            String businessItemLabel) {
+        return new ProcessEffortEvidenceQuantity(
+                ProcessEffortEvidenceQuantityStatus.UNSUPPORTED_UNIT,
+                new BigDecimal(magnitude),
+                null,
+                null,
+                businessItemRef,
+                businessItemLabel,
+                null,
+                ProcessEffortDurationUnit.MINUTE,
+                null,
+                "unsupported effort unit");
+    }
+
+    private ProcessEffortEvidenceQuantity rangeQuantity(
+            ProcessEffortEvidenceQuantityStatus status,
+            String minMagnitude,
+            String maxMagnitude,
+            String businessItemRef,
+            String businessItemLabel,
+            ProcessReportingPeriodUnit reportingPeriod,
+            ProcessEffortDurationUnit effortDuration) {
+        return new ProcessEffortEvidenceQuantity(
+                status,
+                null,
+                new BigDecimal(minMagnitude),
+                new BigDecimal(maxMagnitude),
+                businessItemRef,
+                businessItemLabel,
+                reportingPeriod,
+                effortDuration,
+                "between " + minMagnitude + " and " + maxMagnitude,
                 null);
     }
 
