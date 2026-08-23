@@ -3,13 +3,18 @@ package com.codeworkdigital.api.processanalysis.infrastructure.openai;
 import java.net.URI;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.function.Function;
 
 final class ProcessAnalysisLiveEvalSettings {
 
     static final String ENABLED_KEY = "PROCESS_ANALYSIS_LIVE_EVAL_ENABLED";
     static final String RUNS_KEY = "PROCESS_ANALYSIS_EVAL_RUNS";
+    static final String CASE_IDS_KEY = "PROCESS_ANALYSIS_EVAL_CASE_IDS";
     static final String API_KEY = "OPENAI_API_KEY";
     static final String MODEL_KEY = "PROCESS_ANALYSIS_MODEL";
     static final String RESPONSES_URL_KEY = "PROCESS_ANALYSIS_RESPONSES_URL";
@@ -19,6 +24,7 @@ final class ProcessAnalysisLiveEvalSettings {
 
     private final boolean enabled;
     private final int runs;
+    private final List<String> caseIds;
     private final String apiKey;
     private final String model;
     private final URI responsesUrl;
@@ -29,6 +35,7 @@ final class ProcessAnalysisLiveEvalSettings {
     private ProcessAnalysisLiveEvalSettings(
             boolean enabled,
             int runs,
+            List<String> caseIds,
             String apiKey,
             String model,
             URI responsesUrl,
@@ -37,6 +44,7 @@ final class ProcessAnalysisLiveEvalSettings {
             Path outputRoot) {
         this.enabled = enabled;
         this.runs = runs;
+        this.caseIds = List.copyOf(caseIds);
         this.apiKey = apiKey;
         this.model = model;
         this.responsesUrl = responsesUrl;
@@ -55,6 +63,7 @@ final class ProcessAnalysisLiveEvalSettings {
             return new ProcessAnalysisLiveEvalSettings(
                     false,
                     1,
+                    parseCaseIds(lookup.apply(CASE_IDS_KEY)),
                     "",
                     "",
                     URI.create("https://api.openai.com/v1/responses"),
@@ -63,10 +72,16 @@ final class ProcessAnalysisLiveEvalSettings {
                     outputRoot);
         }
 
+        List<String> caseIds = parseCaseIds(lookup.apply(CASE_IDS_KEY));
         int runs = parseRuns(lookup.apply(RUNS_KEY));
+        if (runs > 3 && caseIds.isEmpty()) {
+            throw new IllegalArgumentException(
+                    RUNS_KEY + " greater than 3 requires " + CASE_IDS_KEY + " to limit live eval cost");
+        }
         return new ProcessAnalysisLiveEvalSettings(
                 true,
                 runs,
+                caseIds,
                 requireText(lookup.apply(API_KEY), API_KEY),
                 requireText(lookup.apply(MODEL_KEY), MODEL_KEY),
                 parseUri(lookup.apply(RESPONSES_URL_KEY), URI.create("https://api.openai.com/v1/responses")),
@@ -81,6 +96,14 @@ final class ProcessAnalysisLiveEvalSettings {
 
     int runs() {
         return runs;
+    }
+
+    List<String> caseIds() {
+        return caseIds;
+    }
+
+    boolean hasCaseFilter() {
+        return !caseIds.isEmpty();
     }
 
     String model() {
@@ -99,6 +122,27 @@ final class ProcessAnalysisLiveEvalSettings {
                 responsesUrl,
                 connectTimeout,
                 requestTimeout);
+    }
+
+    List<ProcessAnalysisEvalCase> selectCases(List<ProcessAnalysisEvalCase> corpus) {
+        if (caseIds.isEmpty()) {
+            return List.copyOf(corpus);
+        }
+
+        Set<String> requested = new HashSet<>(caseIds);
+        List<ProcessAnalysisEvalCase> selected = corpus.stream()
+                .filter(evalCase -> requested.contains(evalCase.id()))
+                .toList();
+        Set<String> found = new HashSet<>();
+        selected.forEach(evalCase -> found.add(evalCase.id()));
+        List<String> unknown = caseIds.stream()
+                .filter(caseId -> !found.contains(caseId))
+                .toList();
+        if (!unknown.isEmpty()) {
+            throw new IllegalArgumentException(
+                    CASE_IDS_KEY + " contains unknown process analysis eval case id(s): " + String.join(", ", unknown));
+        }
+        return selected;
     }
 
     private static String lookupConfig(String key) {
@@ -124,13 +168,34 @@ final class ProcessAnalysisLiveEvalSettings {
         }
         try {
             int parsed = Integer.parseInt(value.strip());
-            if (parsed < 1 || parsed > 3) {
-                throw new IllegalArgumentException(RUNS_KEY + " must be between 1 and 3");
+            if (parsed < 1 || parsed > 20) {
+                throw new IllegalArgumentException(RUNS_KEY + " must be between 1 and 20");
             }
             return parsed;
         } catch (NumberFormatException exception) {
-            throw new IllegalArgumentException(RUNS_KEY + " must be a number between 1 and 3", exception);
+            throw new IllegalArgumentException(RUNS_KEY + " must be a number between 1 and 20", exception);
         }
+    }
+
+    private static List<String> parseCaseIds(String value) {
+        if (value == null || value.isBlank()) {
+            return List.of();
+        }
+
+        List<String> parsed = new ArrayList<>();
+        Set<String> unique = new HashSet<>();
+        for (String rawId : value.split(",")) {
+            String caseId = rawId.strip();
+            if (caseId.isBlank()) {
+                throw new IllegalArgumentException(CASE_IDS_KEY + " must contain comma-separated nonblank case ids");
+            }
+            if (!unique.add(caseId)) {
+                throw new IllegalArgumentException(
+                        CASE_IDS_KEY + " contains duplicate process analysis eval case id " + caseId);
+            }
+            parsed.add(caseId);
+        }
+        return List.copyOf(parsed);
     }
 
     private static URI parseUri(String value, URI defaultValue) {

@@ -79,6 +79,7 @@ final class ProcessAnalysisLiveEvalReportWriter {
         ProcessAnalysisLiveEvalHarness.ProcessAnalysisLiveEvalExecution first = caseExecutions.get(0);
         markdown.append("\n### ").append(first.caseId()).append(" (").append(first.locale()).append(")\n\n");
         markdown.append("Input:\n\n> ").append(first.description()).append("\n\n");
+        appendP06StabilitySummary(markdown, caseExecutions);
 
         for (ProcessAnalysisLiveEvalHarness.ProcessAnalysisLiveEvalExecution execution : caseExecutions) {
             markdown.append("#### Run ").append(execution.runIndex()).append("\n\n");
@@ -100,6 +101,8 @@ final class ProcessAnalysisLiveEvalReportWriter {
                 continue;
             }
 
+            appendP06Diagnostics(markdown, execution.p06Diagnostic());
+
             markdown.append("\nObservations:\n");
             appendTextList(markdown, execution.observations());
 
@@ -115,6 +118,85 @@ final class ProcessAnalysisLiveEvalReportWriter {
             markdown.append("\nPreliminary assessment:\n\n");
             markdown.append(execution.preliminaryAssessment()).append("\n\n");
         }
+    }
+
+    private void appendP06StabilitySummary(
+            StringBuilder markdown,
+            List<ProcessAnalysisLiveEvalHarness.ProcessAnalysisLiveEvalExecution> caseExecutions) {
+        Map<String, List<ProcessAnalysisLiveEvalHarness.ProcessAnalysisLiveEvalExecution>> bySignature =
+                caseExecutions.stream()
+                        .filter(ProcessAnalysisLiveEvalHarness.ProcessAnalysisLiveEvalExecution::success)
+                        .filter(execution -> execution.p06Diagnostic() != null)
+                        .collect(Collectors.groupingBy(
+                                execution -> execution.p06Diagnostic().signature(),
+                                LinkedHashMap::new,
+                                Collectors.toList()));
+        if (bySignature.isEmpty()) {
+            return;
+        }
+
+        int successfulRuns = bySignature.values().stream().mapToInt(List::size).sum();
+        markdown.append("P06 evidence signatures:\n\n");
+        for (Map.Entry<String, List<ProcessAnalysisLiveEvalHarness.ProcessAnalysisLiveEvalExecution>> entry
+                : bySignature.entrySet()) {
+            ProcessAnalysisLiveEvalHarness.P06DiagnosticFingerprint diagnostic =
+                    entry.getValue().get(0).p06Diagnostic();
+            markdown.append(entry.getValue().size()).append("/").append(successfulRuns).append("\n");
+            markdown.append("- volume: ").append(diagnostic.evidence().volume().signature()).append("\n");
+            markdown.append("- effort: ").append(diagnostic.evidence().effort().signature()).append("\n");
+            markdown.append("- same nonblank business item ref: ")
+                    .append(yesNo(diagnostic.evidence().sameNonblankBusinessItemRef())).append("\n");
+            markdown.append("- volume projection: ")
+                    .append(presentAbsent(diagnostic.admission().volumeProjectionPresent())).append("\n");
+            markdown.append("- effort projection: ")
+                    .append(presentAbsent(diagnostic.admission().effortProjectionPresent())).append("\n");
+            markdown.append("- gaps: ").append(joinOrNone(diagnostic.admission().materialityEvidenceGapKinds())).append("\n\n");
+        }
+    }
+
+    private void appendP06Diagnostics(
+            StringBuilder markdown,
+            ProcessAnalysisLiveEvalHarness.P06DiagnosticFingerprint diagnostic) {
+        if (diagnostic == null) {
+            return;
+        }
+
+        markdown.append("\nP06 evidence\n\n");
+        markdown.append("Volume:\n");
+        appendQuantity(markdown, diagnostic.evidence().volume());
+        markdown.append("\nEffort:\n");
+        appendQuantity(markdown, diagnostic.evidence().effort());
+        markdown.append("\nRelationship:\n");
+        markdown.append("- same nonblank business item ref: ")
+                .append(yesNo(diagnostic.evidence().sameNonblankBusinessItemRef())).append("\n");
+
+        markdown.append("\nP06 admission:\n");
+        markdown.append("- volume projection: ")
+                .append(presentAbsent(diagnostic.admission().volumeProjectionPresent())).append("\n");
+        markdown.append("- effort projection: ")
+                .append(presentAbsent(diagnostic.admission().effortProjectionPresent())).append("\n");
+        markdown.append("- derived result: ")
+                .append(presentAbsent(diagnostic.admission().derivedResultPresent())).append("\n");
+        markdown.append("- materiality: ")
+                .append(ProcessAnalysisLiveEvalHarness.valueOrNa(diagnostic.admission().materialityAssessmentStatus()))
+                .append("\n");
+        markdown.append("- gaps: ").append(joinOrNone(diagnostic.admission().materialityEvidenceGapKinds())).append("\n");
+        markdown.append("- composable: ").append(diagnostic.admission().composable()).append("\n");
+    }
+
+    private void appendQuantity(
+            StringBuilder markdown,
+            ProcessAnalysisLiveEvalHarness.P06EvidenceQuantityFingerprint quantity) {
+        markdown.append("- status: ").append(ProcessAnalysisLiveEvalHarness.valueOrNa(quantity.status())).append("\n");
+        markdown.append("- magnitude: ").append(ProcessAnalysisLiveEvalHarness.valueOrNa(quantity.magnitude())).append("\n");
+        markdown.append("- min: ").append(ProcessAnalysisLiveEvalHarness.valueOrNa(quantity.minMagnitude())).append("\n");
+        markdown.append("- max: ").append(ProcessAnalysisLiveEvalHarness.valueOrNa(quantity.maxMagnitude())).append("\n");
+        markdown.append("- reporting period: ")
+                .append(ProcessAnalysisLiveEvalHarness.valueOrNa(quantity.reportingPeriod())).append("\n");
+        markdown.append("- effort duration: ")
+                .append(ProcessAnalysisLiveEvalHarness.valueOrNa(quantity.effortDuration())).append("\n");
+        markdown.append("- business item ref present: ").append(yesNo(quantity.businessItemRefPresent())).append("\n");
+        markdown.append("- business item label present: ").append(yesNo(quantity.businessItemLabelPresent())).append("\n");
     }
 
     private void appendTextList(StringBuilder markdown, List<String> values) {
@@ -148,5 +230,13 @@ final class ProcessAnalysisLiveEvalReportWriter {
 
     private String joinOrNone(List<String> values) {
         return values.isEmpty() ? "none" : String.join(", ", values);
+    }
+
+    private String presentAbsent(boolean present) {
+        return present ? "present" : "absent";
+    }
+
+    private String yesNo(boolean value) {
+        return value ? "yes" : "no";
     }
 }

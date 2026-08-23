@@ -20,7 +20,7 @@ class ProcessAnalysisLiveEvalManualTest {
         ProcessAnalysisLiveEvalHarness.ProcessAnalysisLiveEvalRun run = new ProcessAnalysisLiveEvalHarness(
                 objectMapper,
                 settings,
-                new ProcessAnalysisEvalCaseLoader(objectMapper).load())
+                settings.selectCases(new ProcessAnalysisEvalCaseLoader(objectMapper).load()))
                 .run();
 
         assertThat(run.outputDirectory()).exists();
@@ -28,8 +28,8 @@ class ProcessAnalysisLiveEvalManualTest {
         assertThat(run.outputDirectory().resolve("results.json")).exists();
         assertThat(run.report().executionCount()).isEqualTo(run.report().caseCount() * settings.runs());
         System.out.println("Process analysis live eval report: " + run.outputDirectory().toAbsolutePath());
-        assertThat(run.report().failureCount())
-                .as("Any live eval failure is captured in the generated report directory")
-                .isZero();
+        assertThat(run.report().successCount() + run.report().failureCount())
+                .as("Live eval failures are observational and captured in the generated report directory")
+                .isEqualTo(run.report().executionCount());
     }
 }

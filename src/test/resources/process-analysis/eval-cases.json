@@ -88,5 +88,10 @@
     "id": "undefined-exceptions",
     "locale": "ES",
     "description": "Procesamos solicitudes de compra, validamos datos, pedimos aprobacion y emitimos la orden, pero no esta claro que pasa cuando faltan documentos o hay cambios urgentes."
+  },
+  {
+    "id": "p06-range-volume-missing-effort",
+    "locale": "ES",
+    "description": "Recibimos solicitudes internas de compra a través de un formulario en la intranet. El formulario tiene campos obligatorios: centro de costo, categoría (elegida de una lista de tres opciones), monto y descripción. Cuando alguien la envía, el sistema la deriva automáticamente al responsable de esa categoría, que aprueba o rechaza desde la misma herramienta. Llegan unas cuatro o cinco por mes. El circuito tarda menos de un día y no hemos tenido reclamos ni errores de derivación."
   }
 ]

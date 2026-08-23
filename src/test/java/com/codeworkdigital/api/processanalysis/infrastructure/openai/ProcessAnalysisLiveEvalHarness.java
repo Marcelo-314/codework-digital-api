@@ -7,7 +7,9 @@ import com.codeworkdigital.api.processanalysis.application.ProcessAnalysisResult
 import com.codeworkdigital.api.processanalysis.application.ProcessAnalysisModelClient;
 import com.codeworkdigital.api.processanalysis.application.ProcessAnalysisUnavailableException;
 import com.codeworkdigital.api.processanalysis.application.ProcessAnalysisValidationException;
+import com.codeworkdigital.api.processanalysis.application.ProcessEffortEvidenceQuantity;
 import com.codeworkdigital.api.processanalysis.application.ProcessEffortEvidenceProjectionMapper;
+import com.codeworkdigital.api.processanalysis.application.ProcessEffortMaterialityEvidenceGap;
 import com.codeworkdigital.api.processanalysis.application.ProcessEffortMaterialityAssessmentEvaluator;
 import com.codeworkdigital.api.processanalysis.application.ProcessEffortMaterialityEvidenceGapIdentifier;
 import com.codeworkdigital.api.processanalysis.application.ProcessEffortPerReportingPeriodMaterializer;
@@ -22,6 +24,7 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import tools.jackson.databind.ObjectMapper;
 
 final class ProcessAnalysisLiveEvalHarness {
@@ -102,7 +105,8 @@ final class ProcessAnalysisLiveEvalHarness {
                     evalCase.description(),
                     runIndex,
                     durationMillis(startedAt),
-                    understanding);
+                    understanding,
+                    P06DiagnosticFingerprint.from(result));
         } catch (RuntimeException exception) {
             return ProcessAnalysisLiveEvalExecution.failure(
                     evalCase.id(),
@@ -239,6 +243,7 @@ final class ProcessAnalysisLiveEvalHarness {
             int validationQuestionCount,
             List<String> stageOperationTypes,
             String preliminaryAssessment,
+            P06DiagnosticFingerprint p06Diagnostic,
             List<String> observations,
             List<String> inferences,
             List<String> validationQuestions,
@@ -261,7 +266,8 @@ final class ProcessAnalysisLiveEvalHarness {
                 String description,
                 int runIndex,
                 long elapsedMillis,
-                ProcessUnderstanding understanding) {
+                ProcessUnderstanding understanding,
+                P06DiagnosticFingerprint p06Diagnostic) {
             return new ProcessAnalysisLiveEvalExecution(
                     caseId,
                     locale,
@@ -278,6 +284,7 @@ final class ProcessAnalysisLiveEvalHarness {
                             .map(stage -> stage.operationType().name())
                             .toList(),
                     understanding.preliminaryAssessment(),
+                    p06Diagnostic,
                     understanding.observations(),
                     understanding.inferences(),
                     understanding.validationQuestions(),
@@ -310,6 +317,7 @@ final class ProcessAnalysisLiveEvalHarness {
                     0,
                     List.of(),
                     null,
+                    null,
                     List.of(),
                     List.of(),
                     List.of(),
@@ -318,5 +326,125 @@ final class ProcessAnalysisLiveEvalHarness {
                     errorReason,
                     errorMessage);
         }
+    }
+
+    record P06DiagnosticFingerprint(
+            P06EvidenceFingerprint evidence,
+            P06AdmissionFingerprint admission,
+            String signature) {
+
+        static P06DiagnosticFingerprint from(ProcessAnalysisResult result) {
+            P06EvidenceFingerprint evidence = P06EvidenceFingerprint.from(result);
+            P06AdmissionFingerprint admission = P06AdmissionFingerprint.from(result);
+            return new P06DiagnosticFingerprint(evidence, admission, signature(evidence, admission));
+        }
+
+        private static String signature(
+                P06EvidenceFingerprint evidence,
+                P06AdmissionFingerprint admission) {
+            return String.join(
+                    "|",
+                    "volume=" + evidence.volume().signature(),
+                    "effort=" + evidence.effort().signature(),
+                    "sameRef=" + evidence.sameNonblankBusinessItemRef(),
+                    "volumeProjection=" + admission.volumeProjectionPresent(),
+                    "effortProjection=" + admission.effortProjectionPresent(),
+                    "derivedResult=" + admission.derivedResultPresent(),
+                    "materiality=" + valueOrNa(admission.materialityAssessmentStatus()),
+                    "gaps=" + String.join(",", admission.materialityEvidenceGapKinds()),
+                    "composable=" + admission.composable());
+        }
+    }
+
+    record P06EvidenceFingerprint(
+            P06EvidenceQuantityFingerprint volume,
+            P06EvidenceQuantityFingerprint effort,
+            boolean sameNonblankBusinessItemRef) {
+
+        static P06EvidenceFingerprint from(ProcessAnalysisResult result) {
+            ProcessEffortEvidenceQuantity volume = result.effortEvidence().volumePerReportingPeriod();
+            ProcessEffortEvidenceQuantity effort = result.effortEvidence().effortPerBusinessItem();
+            return new P06EvidenceFingerprint(
+                    P06EvidenceQuantityFingerprint.from(volume),
+                    P06EvidenceQuantityFingerprint.from(effort),
+                    sameNonblank(volume.businessItemRef(), effort.businessItemRef()));
+        }
+
+        private static boolean sameNonblank(String left, String right) {
+            return hasText(left) && hasText(right) && left.strip().equals(right.strip());
+        }
+    }
+
+    record P06EvidenceQuantityFingerprint(
+            String status,
+            String magnitude,
+            String minMagnitude,
+            String maxMagnitude,
+            String reportingPeriod,
+            String effortDuration,
+            boolean businessItemRefPresent,
+            boolean businessItemLabelPresent) {
+
+        static P06EvidenceQuantityFingerprint from(ProcessEffortEvidenceQuantity quantity) {
+            Objects.requireNonNull(quantity, "quantity");
+            return new P06EvidenceQuantityFingerprint(
+                    quantity.status() == null ? null : quantity.status().name(),
+                    quantity.magnitude() == null ? null : quantity.magnitude().toPlainString(),
+                    quantity.minMagnitude() == null ? null : quantity.minMagnitude().toPlainString(),
+                    quantity.maxMagnitude() == null ? null : quantity.maxMagnitude().toPlainString(),
+                    quantity.reportingPeriod() == null ? null : quantity.reportingPeriod().name(),
+                    quantity.effortDuration() == null ? null : quantity.effortDuration().name(),
+                    hasText(quantity.businessItemRef()),
+                    hasText(quantity.businessItemLabel()));
+        }
+
+        String signature() {
+            return String.join(
+                    ",",
+                    "status=" + valueOrNa(status),
+                    "magnitude=" + valueOrNa(magnitude),
+                    "min=" + valueOrNa(minMagnitude),
+                    "max=" + valueOrNa(maxMagnitude),
+                    "reportingPeriod=" + valueOrNa(reportingPeriod),
+                    "effortDuration=" + valueOrNa(effortDuration),
+                    "refPresent=" + businessItemRefPresent,
+                    "labelPresent=" + businessItemLabelPresent);
+        }
+    }
+
+    record P06AdmissionFingerprint(
+            boolean volumeProjectionPresent,
+            boolean effortProjectionPresent,
+            boolean derivedResultPresent,
+            String materialityAssessmentStatus,
+            List<String> materialityEvidenceGapKinds,
+            boolean composable) {
+
+        P06AdmissionFingerprint {
+            materialityEvidenceGapKinds = List.copyOf(materialityEvidenceGapKinds);
+        }
+
+        static P06AdmissionFingerprint from(ProcessAnalysisResult result) {
+            return new P06AdmissionFingerprint(
+                    result.volumeProjection().isPresent(),
+                    result.effortProjection().isPresent(),
+                    result.derivedResult().isPresent(),
+                    result.materialityAssessment()
+                            .map(assessment -> assessment.status().name())
+                            .orElse(null),
+                    result.materialityEvidenceGaps().stream()
+                            .map(ProcessEffortMaterialityEvidenceGap::kind)
+                            .map(Enum::name)
+                            .toList(),
+                    result.composable());
+        }
+    }
+
+    private static boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
+
+    static String valueOrNa(String value) {
+        return value == null || value.isBlank() ? "n/a" : value;
     }
 }
