@@ -213,7 +213,7 @@ description
         -> one or more semantic hypotheses
         -> admissibility validation
         -> admissible hypothesis space
-        -> established / stable knowledge
+        -> authoritative established knowledge and/or hypothesis-derived semantic claims
         -> capability projection
         -> robust reasoning / targeted clarification
 ```
@@ -236,9 +236,10 @@ Natural Language
         -> Semantic Hypotheses
         -> Admissibility
         -> Admissible Hypothesis Space
-        -> Established / Stable Knowledge
-        -> Capability Projection
-        -> Deterministic Reasoning
+        |-> authoritative EstablishedKnowledge
+        |-> hypothesis-derived semantic claims / stability information
+        -> Capability Projection(s)
+        -> Deterministic / Robust Capability Reasoning
 ```
 
 Bounded semantic sampling and active human clarification are lateral mechanisms around this pipeline, not unbounded control loops. The diagram is conceptual; it is not a final implementation design.
@@ -274,7 +275,13 @@ SemanticHypothesis is one coherent semantic interpretation assigning CandidateEv
 
 EstablishedKnowledge is knowledge the system may treat as authoritative for deterministic reasoning according to explicit grounding, provenance, and establishment rules. Deterministic validation may establish structural consistency, contract compatibility, admissibility, dimensional validity, or provenance consistency, but validation alone does not make an LLM-generated semantic hypothesis true.
 
-CapabilityProjection is a capability-specific, deterministic projection of available established or stable semantic knowledge into the inputs that a particular analytical capability knows how to consume.
+A stable hypothesis-derived claim is a semantic claim that remains invariant across the relevant admissible hypotheses under consideration. It is useful evidence about semantic stability, but it remains hypothesis-derived unless separately established under authoritative establishment rules.
+
+Stability across admissible hypotheses is not EstablishedKnowledge. Consensus is not truth. Hypothesis invariance is not source establishment. For example, if H1, H2, H3, H4, and H5 all contain X, the system may describe X as stable or invariant across that relevant hypothesis set, but it must not treat X as an established fact unless X also satisfies explicit establishment rules.
+
+This term is conceptual. P0.4 does not define a Java type, persistence model, API shape, or final representation for stable hypothesis-derived claims or for any collective stable hypothesis kernel.
+
+CapabilityProjection is a capability-specific, deterministic projection from whatever validated epistemic inputs a capability contract eventually permits into the inputs that a particular analytical capability knows how to consume. It must preserve the epistemic status of its inputs rather than silently promoting hypothesis-derived stability into established fact.
 
 Examples include:
 
@@ -359,6 +366,8 @@ It must not automatically be represented as:
 
 Frequency may inform stability diagnostics, additional-sampling decisions, and disagreement detection. It does not establish truth by itself.
 
+Likewise, invariant appearance across all sampled or admissible hypotheses does not by itself establish truth. Stability can identify a stable hypothesis-derived claim, but source-grounded or otherwise authoritative establishment remains a separate requirement.
+
 ## Semantic Knowledge And Capability Projection
 
 Semantic interpretation is distinct from capability projection:
@@ -386,7 +395,7 @@ Prohibited implicit behavior includes:
 - using elapsed time as manual effort;
 - interpreting team size as available FTE capacity without required premises.
 
-A future capability may legitimately consume information that P06 currently does not. This is why capability projection must remain a distinct layer downstream of semantic interpretation, admissibility, and established or stable knowledge.
+A future capability may legitimately consume information that P06 currently does not. This is why capability projection must remain a distinct layer downstream of semantic interpretation, admissibility, and validated epistemic inputs. Those inputs may eventually include authoritative EstablishedKnowledge, hypothesis-derived claims, stable hypothesis-derived claims, projections of individual admissible hypotheses, or another bounded representation. P0.4 does not decide the final mechanism.
 
 ## Concepts For The Next Foundation
 
@@ -418,6 +427,8 @@ may be different process decompositions. If the difference does not change P06 e
 
 The future architecture should not require global textual or structural identity between hypotheses. Full equivalence rules belong to P0.7.
 
+Analytical equivalence can reduce irrelevant disagreement for a capability. It does not establish truth and does not promote propositions common to equivalent hypotheses into EstablishedKnowledge.
+
 ### Material Disagreement
 
 Not every semantic disagreement requires clarification.
@@ -427,6 +438,8 @@ The future system must distinguish descriptive variation from analytically mater
 A disagreement is material for an analytical capability when alternative admissible interpretations can change that capability's conclusion or required inputs.
 
 This concept will later drive active clarification. It is not implemented here.
+
+Absence of material disagreement means the system may be able to derive a robust capability conclusion. It does not mean all semantic uncertainty has become established knowledge.
 
 ### Robust Reasoning
 
@@ -442,6 +455,8 @@ then r is robust with respect to the remaining admissible semantic uncertainty.
 
 The system does not necessarily need to identify one uniquely true Hi before concluding r.
 
+A robust result does not require pretending that every shared intermediate semantic claim is EstablishedKnowledge. For all H in A, f(H) = r can support robustness of r with respect to A without implying that every proposition common to A is an established factual truth.
+
 If:
 
 ```text
@@ -456,12 +471,13 @@ The CapabilityProjection layer must fit into this target:
 
 ```text
 Admissible Hypotheses
-        -> Stable / Established Knowledge
+        |-> authoritative EstablishedKnowledge
+        |-> hypothesis-derived semantic claims / stability information
         -> Capability Projection(s)
         -> f(A) or capability-specific robust consequence
 ```
 
-P0.4 does not resolve whether robust reasoning operates directly on hypotheses, on projected capability states, or through another intermediate representation. That remains an open P0.7/P0.9 design question.
+P0.4 does not resolve whether robust reasoning operates directly on hypotheses, on projected capability states per hypothesis, through stable hypothesis-derived claims, or through another bounded intermediate representation. That remains an open P0.7/P0.9 design question.
 
 ### Active Clarification
 
@@ -600,7 +616,9 @@ P0.5:
 - What constitutes a SemanticHypothesis?
 - Is a hypothesis process-wide, capability-specific, or can both views coexist?
 - Which concepts belong in the first finite semantic vocabulary?
-- What is the minimum EstablishedKnowledge model?
+- What is the minimum EstablishedKnowledge model independent of hypothesis stability?
+- Does the foundation need an explicit representation for hypothesis-derived claims, or can they remain inside SemanticHypothesis?
+- What information, if any, can transition from hypothesis-derived to EstablishedKnowledge, and under which explicit establishment rules?
 - What exactly is a CapabilityProjection?
 - What information may remain established even when no current capability can consume it?
 - How do we prevent P06 requirements from defining the general semantic model?
@@ -617,6 +635,9 @@ P0.7:
 - What makes a hypothesis admissible?
 - What is equivalence for P06?
 - What disagreements are material?
+- How is a stable hypothesis-derived claim identified?
+- What is the relationship between analytical equivalence classes and semantic stability?
+- How is stability represented without treating frequency or consensus as truth?
 
 P0.8:
 
@@ -627,6 +648,8 @@ P0.9:
 
 - What does robust reasoning mean for exact values versus intervals or ranges?
 - Which conclusions may be asserted across multiple admissible hypotheses?
+- Does robust reasoning operate directly over admissible hypotheses, capability projections of each hypothesis, a stable hypothesis kernel, or another representation?
+- What epistemic status does a robust conclusion have when its supporting intermediate semantic claims are not EstablishedKnowledge?
 
 ## Roadmap
 
