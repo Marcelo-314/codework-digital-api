@@ -121,6 +121,50 @@ The final v5 diagnostic also observed approximately:
 
 These are experimental values for that preserved remote inference path, not universal service latency.
 
+### Illustrative Capability-Narrowness Case
+
+This section records an illustrative observed case, not a controlled repeated experiment and not quantitative evidence.
+
+User description:
+
+```text
+Tenemos un equipo de tres personas que procesa devoluciones. Entran alrededor de ciento veinte por semana. Cada una lleva entre ocho y doce minutos de trabajo, aunque el cliente suele recibir la resolución recién a las 48 horas. En temporada alta puede llegar a duplicarse el volumen.
+```
+
+The live model interpretation correctly recognized, conceptually:
+
+- team size = 3;
+- approximate volume near 120 per WEEK;
+- manual effort = RANGE 8..12 MINUTE per return;
+- client resolution after approximately 48 HOUR as elapsed or cycle time, not manual effort;
+- seasonal volume may reach approximately 2 x baseline.
+
+The public P06 result nevertheless had:
+
+```text
+clarificationId = null
+clarificationQuestions = []
+reasoning.establishedInputs = []
+calculation = null
+decision = null
+```
+
+This should not be classified automatically as a bug. It demonstrates a different architectural driver from P0.3.1.
+
+P0.3.1 demonstrated:
+
+```text
+same language -> varying semantic interpretations
+```
+
+The returns example demonstrates:
+
+```text
+good or rich semantic interpretation -> capability contract too narrow to consume all of it
+```
+
+Semantic interpretation is not the same thing as analytical or capability projection. A semantic interpretation can be useful and still contain information a specific analytical capability cannot currently consume.
+
 ## What Structured Output Guarantees
 
 Structured Output can guarantee schema-level properties such as:
@@ -165,10 +209,12 @@ toward:
 
 ```text
 description
-        -> candidate evidence
+        -> CandidateEvidence
         -> one or more semantic hypotheses
         -> admissibility validation
         -> admissible hypothesis space
+        -> established / stable knowledge
+        -> capability projection
         -> robust reasoning / targeted clarification
 ```
 
@@ -182,15 +228,32 @@ where Hi is a semantic hypothesis and A is the set of admissible hypotheses afte
 
 This is a conceptual architecture decision. It does not define Java records, persistence tables, APIs, or model-calling strategy.
 
+The target boundary for P0.5 to refine is:
+
+```text
+Natural Language
+        -> Candidate Evidence
+        -> Semantic Hypotheses
+        -> Admissibility
+        -> Admissible Hypothesis Space
+        -> Established / Stable Knowledge
+        -> Capability Projection
+        -> Deterministic Reasoning
+```
+
+Bounded semantic sampling and active human clarification are lateral mechanisms around this pipeline, not unbounded control loops. The diagram is conceptual; it is not a final implementation design.
+
 ### Epistemic Separation
 
 The future architecture must preserve this conceptual separation:
 
 ```text
-ExtractedCandidate != SemanticHypothesis != EstablishedKnowledge
+CandidateEvidence != SemanticHypothesis != EstablishedKnowledge != CapabilityProjection
 ```
 
-ExtractedCandidate is a source-grounded piece of potentially relevant structure detected in the user description, without necessarily assigning its final business semantic role.
+CandidateEvidence is the canonical architectural term for the role previously described as an extracted candidate. It is evidence-oriented and must preserve source grounding and provenance. This is a conceptual architecture name, not an assertion that a Java type named CandidateEvidence exists.
+
+CandidateEvidence is a source-grounded piece of potentially relevant structure detected in the user description, without necessarily assigning its final business semantic role.
 
 Example:
 
@@ -207,24 +270,66 @@ DAY
 
 This is not automatically manual effort.
 
-SemanticHypothesis is one coherent semantic interpretation assigning candidate evidence to domain meaning and relations. For the same temporal expression, alternatives may include PROCESS_ELAPSED_TIME or, only where justified by source wording, MANUAL_EFFORT_PER_BUSINESS_ITEM.
+SemanticHypothesis is one coherent semantic interpretation assigning CandidateEvidence to domain meaning and relations. For the same temporal expression, alternatives may include PROCESS_ELAPSED_TIME or, only where justified by source wording, MANUAL_EFFORT_PER_BUSINESS_ITEM.
 
-EstablishedKnowledge is knowledge the system may treat as authoritative for deterministic reasoning according to explicit provenance, validation, or human-establishment rules.
+EstablishedKnowledge is knowledge the system may treat as authoritative for deterministic reasoning according to explicit grounding, provenance, and establishment rules. Deterministic validation may establish structural consistency, contract compatibility, admissibility, dimensional validity, or provenance consistency, but validation alone does not make an LLM-generated semantic hypothesis true.
+
+CapabilityProjection is a capability-specific, deterministic projection of available established or stable semantic knowledge into the inputs that a particular analytical capability knows how to consume.
+
+Examples include:
+
+- P06 operational-burden projection;
+- future Technology Fit projection;
+- future capacity-analysis projection.
+
+P06 is one consumer of a capability-specific projection from a broader semantic knowledge model. The general semantic model must not be designed around P06.
 
 ### Finite Backend Domain
 
 The backend must not attempt to encode a rule for every possible natural-language formulation. Natural language is open-ended.
 
+Backend rules must operate on canonical semantic concepts, relations, dimensions, and invariants, not on particular linguistic phrases.
+
+Anti-pattern examples:
+
+```text
+if text says "per week" ...
+if text says "less than one day" ...
+if text says "high season" ...
+if text says "four or five" ...
+```
+
+These do not scale.
+
+Desired rule level examples:
+
+```text
+RANGE -> lowerBound <= upperBound
+QUANTITY / WEEK -> dimensionally distinct from QUANTITY / MONTH
+MANUAL_EFFORT -> active human work
+PROCESS_ELAPSED_TIME -> not manual effort
+SOURCE_STATED -> requires appropriate grounding/provenance
+DERIVED_FACT -> requires explicit premises
+```
+
+These names are conceptual examples unless already present in the repository. The generic principle is rules about concepts, not rules about phrases.
+
 The deterministic backend should operate over the finite canonical semantic domain required by the analytical capabilities currently implemented:
 
 ```text
 open linguistic space
-        -> semantic interpretation
-        -> finite canonical domain
+        -> candidate extraction / semantic interpretation
+        -> finite composable semantic vocabulary
         -> deterministic reasoning
 ```
 
 This is not a proposal for a global enterprise ontology or generic workflow engine. Domain vocabulary should grow only when an analytical capability requires it.
+
+Complexity should emerge from composition of a finite semantic vocabulary, not from accumulation of linguistic special cases. The vocabulary may conceptually contain primitives such as quantity, range, bound, period, duration, condition, relation, actor, action, subject, and unit, but P0.4 does not define a complete ontology.
+
+A good future semantic model should represent new business-language cases primarily by combining existing primitives. It should not require a new semantic type or backend rule for every new wording encountered.
+
+The future semantic foundation must be broader than P06 while remaining finite and incrementally scoped. A concept discovered in one use case must not automatically be modeled as a P06-specific type if it is semantically more general. For example, "48 hours until resolution" should be representable as temporal semantic information even if P06 cannot use it as manual effort.
 
 ### Multiple Inferences
 
@@ -253,6 +358,35 @@ It must not automatically be represented as:
 - calibrated posterior probability.
 
 Frequency may inform stability diagnostics, additional-sampling decisions, and disagreement detection. It does not establish truth by itself.
+
+## Semantic Knowledge And Capability Projection
+
+Semantic interpretation is distinct from capability projection:
+
+```text
+Semantic Interpretation != Capability Projection
+```
+
+The semantic model may preserve information such as:
+
+- team size = 3;
+- volume near 120 per WEEK;
+- manual effort in [8, 12] MINUTE per item;
+- elapsed resolution time near 48 HOUR;
+- conditional peak-volume relation near 2 x baseline.
+
+P06 may currently consume only the subset compatible with its dimensional and epistemic contract. The system must not discard useful semantic knowledge merely because P06 cannot currently project it. Likewise, P06 must not silently coerce unsupported knowledge merely to force a calculation.
+
+Prohibited implicit behavior includes:
+
+- silently treating WEEK as MONTH;
+- silently choosing 4 weeks/month;
+- silently choosing 52/12 weeks/month;
+- converting a range to its midpoint;
+- using elapsed time as manual effort;
+- interpreting team size as available FTE capacity without required premises.
+
+A future capability may legitimately consume information that P06 currently does not. This is why capability projection must remain a distinct layer downstream of semantic interpretation, admissibility, and established or stable knowledge.
 
 ## Concepts For The Next Foundation
 
@@ -318,6 +452,17 @@ then the unresolved uncertainty is analytically material and more information ma
 
 This is a conceptual target, not authorization to change P06 semantics in P0.4.
 
+The CapabilityProjection layer must fit into this target:
+
+```text
+Admissible Hypotheses
+        -> Stable / Established Knowledge
+        -> Capability Projection(s)
+        -> f(A) or capability-specific robust consequence
+```
+
+P0.4 does not resolve whether robust reasoning operates directly on hypotheses, on projected capability states, or through another intermediate representation. That remains an open P0.7/P0.9 design question.
+
 ### Active Clarification
 
 Current clarification primarily handles missing or non-exact quantitative values.
@@ -341,17 +486,19 @@ Implementation belongs to a later increment.
 
 ## Candidate Producers And Preprocessing
 
-Candidate extraction may eventually have multiple producers. Conceptually possible producers include:
+CandidateEvidence extraction may eventually have multiple producers. Conceptually possible producers include:
 
-- deterministic browser preprocessing;
-- optional small browser-local model;
-- deterministic backend preprocessing;
-- remote semantic model;
-- explicit user input.
+- BROWSER_DETERMINISTIC;
+- BROWSER_LOCAL_MODEL;
+- BACKEND_DETERMINISTIC;
+- REMOTE_MODEL;
+- USER.
+
+These names are conceptual examples, not required enums.
 
 This document does not commit to implementing all of them.
 
-CandidateEvidence must eventually be producer-independent in semantic meaning while preserving provenance.
+CandidateEvidence must eventually be producer-independent in semantic meaning while preserving producer provenance.
 
 A browser-local model, if explored later, is:
 
@@ -363,15 +510,32 @@ Because browser state is user-controlled, frontend-produced candidates must rema
 
 The original description should remain available to the backend together with preprocessed candidates. P0.4 does not define the API shape.
 
+P0.5 must design CandidateEvidence to be sufficiently neutral and composable that language cases such as:
+
+- 120 per week;
+- approximately 120;
+- between 100 and 140;
+- up to 120;
+- 30 percent more on Fridays;
+- up to 2 x volume in high season;
+
+do not inherently require one dedicated candidate type per phrase. The exact semantic primitives remain open for P0.5.
+
 ## Source Grounding
 
-Future candidate evidence should remain grounded in the original source text whenever feasible.
+Future CandidateEvidence should remain grounded in the original source text whenever feasible.
+
+```text
+CandidateEvidence -> grounded source span
+```
 
 Examples of future-checkable properties:
 
 - a source span exists in the original description;
 - numeric values claimed as extracted are derivable from the grounded span;
 - preprocessing does not silently introduce unsupported factual values.
+
+This requirement applies to source-grounded candidate evidence. It does not require every semantic hypothesis itself to be a literal substring; semantic hypotheses interpret candidate evidence.
 
 P0.4 does not implement source-span machinery. This is a design constraint for P0.5.
 
@@ -425,13 +589,21 @@ P0.4 explicitly rejects:
 
 P0.5:
 
-- What is the minimum CandidateEvidence representation?
+- What is the minimum compositional CandidateEvidence representation?
+- Which semantic primitives are necessary initially?
+- Which primitives are generic and which are capability-specific?
+- How is CandidateEvidence source-grounded?
 - What information must remain source-grounded?
-- What provenance model is sufficient?
+- What provenance is preserved?
 - How is CandidateEvidence distinct from current ProcessEffortEvidence?
+- How are candidate relations represented without creating phrase-specific types?
 - What constitutes a SemanticHypothesis?
-- Does one hypothesis cover the complete process or capability-specific evidence?
+- Is a hypothesis process-wide, capability-specific, or can both views coexist?
 - Which concepts belong in the first finite semantic vocabulary?
+- What is the minimum EstablishedKnowledge model?
+- What exactly is a CapabilityProjection?
+- What information may remain established even when no current capability can consume it?
+- How do we prevent P06 requirements from defining the general semantic model?
 
 P0.6:
 
@@ -463,8 +635,8 @@ P0.9:
 - P0.3 Quantitative Evidence Gap Semantics V2: DONE
 - P0.3.1 P06 Live Extraction Stability: DONE, baseline 8/10 canonical signature
 - P0.3.2 P06 Evidence Contract Hardening: DONE, final prompt v5, bounded canonical sample 10/10
-- P0.4 Single-Inference Boundary Findings: CURRENT
-- P0.5 Candidate Evidence & Semantic Hypothesis Foundation
+- P0.4 Single-Inference Boundary Findings: CURRENT / closing
+- P0.5 Candidate Evidence & Semantic Hypothesis Foundation: includes CandidateEvidence, source grounding/provenance, finite compositional vocabulary, and semantic knowledge vs capability projection separation
 - P0.6 Bounded Multi-Inference Sampling
 - P0.7 Admissibility, Analytical Equivalence & Material Disagreement
 - P0.8 Active Clarification
