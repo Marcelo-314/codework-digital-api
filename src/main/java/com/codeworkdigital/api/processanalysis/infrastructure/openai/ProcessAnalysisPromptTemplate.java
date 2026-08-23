@@ -4,7 +4,7 @@ import com.codeworkdigital.api.processanalysis.application.ProcessAnalysisLocale
 
 final class ProcessAnalysisPromptTemplate {
 
-    private static final String PROMPT_VERSION = "process-analysis-understanding-v4";
+    private static final String PROMPT_VERSION = "process-analysis-understanding-v5";
 
     private ProcessAnalysisPromptTemplate() {
     }

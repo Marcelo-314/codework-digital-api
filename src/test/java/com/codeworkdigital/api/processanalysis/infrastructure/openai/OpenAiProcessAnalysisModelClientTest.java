@@ -135,7 +135,7 @@ class OpenAiProcessAnalysisModelClientTest {
         assertThat(body.at("/input/0/role").textValue()).isEqualTo("system");
         assertThat(body.at("/input/0/content").textValue())
                 .contains(
-                        "Prompt version: process-analysis-understanding-v4",
+                        "Prompt version: process-analysis-understanding-v5",
                         "Do not recommend technology",
                         "OBSERVED, INFERRED",
                         "kebab-case",
