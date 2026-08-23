@@ -53,6 +53,42 @@ class OpenAiProcessAnalysisModelClientTest {
     }
 
     @Test
+    void promptHardensP06EvidenceContractForRangesApproximationAndManualEffort() {
+        String prompt = ProcessAnalysisPromptTemplate.instructions(ProcessAnalysisLocale.ES);
+
+        assertThat(prompt)
+                .contains(
+                        "An expression containing two distinct numeric alternatives or explicit numeric bounds is RANGE",
+                        "4 or 5",
+                        "between 4 and 5",
+                        "4 o 5",
+                        "entre 4 y 5",
+                        "unas cuatro o cinco",
+                        "the explicit range takes precedence",
+                        "unas cuatro o cinco solicitudes por mes",
+                        "RANGE 4..5, not APPROXIMATE",
+                        "RANGE uses null magnitude with minMagnitude and maxMagnitude",
+                        "minMagnitude <= maxMagnitude",
+                        "APPROXIMATE uses magnitude and null minMagnitude/maxMagnitude",
+                        "Never return APPROXIMATE with null magnitude and non-null minMagnitude or maxMagnitude",
+                        "Do not choose a midpoint, minimum, or maximum from a range as an exact scalar");
+        assertThat(prompt)
+                .contains(
+                        "effortEvidence.effortPerBusinessItem is only active human/manual work effort attributable to processing one business item",
+                        "Do not confuse active manual effort with elapsed process duration, cycle time, lead time, turnaround time, waiting time, or SLA",
+                        "If the source provides only end-to-end elapsed/cycle/lead/turnaround time and does not separately state active human effort per business item, set effortPerBusinessItem.status to ABSENT",
+                        "el circuito tarda menos de un dia",
+                        "effortPerBusinessItem is ABSENT, not UNSUPPORTED_UNIT",
+                        "cada solicitud requiere dos horas de trabajo manual",
+                        "may be UNSUPPORTED_UNIT when only MINUTE is supported");
+        assertThat(prompt)
+                .contains(
+                        "Keep observations limited to information explicitly stated by the user",
+                        "Put anything reasonably implied but not explicitly stated into inferences",
+                        "Do not invent systems, actors, approvals, rules, or exceptions as stated facts");
+    }
+
+    @Test
     void sendsExpectedResponsesApiRequestAndParsesStructuredOutput() throws Exception {
         AtomicReference<CapturedRequest> captured = new AtomicReference<>();
         AtomicInteger requests = new AtomicInteger();

@@ -44,10 +44,22 @@ final class ProcessAnalysisPromptTemplate {
                 The preliminaryAssessment must be explicitly preliminary and mention important uncertainties when they exist.
                 Extract effortEvidence from the same description in the same response; do not make a second analysis.
                 effortEvidence.volumePerReportingPeriod is the business-item count per reporting period.
-                effortEvidence.effortPerBusinessItem is the manual effort duration per one business item.
+                effortEvidence.effortPerBusinessItem is only active human/manual work effort attributable to processing one business item.
+                Do not confuse active manual effort with elapsed process duration, cycle time, lead time, turnaround time, waiting time, or SLA.
+                Statements such as "the process takes less than one day", "resolved within 24 hours", "turnaround time is three days", "the SLA is 48 hours", or "the complete circuit takes one business day" do not by themselves establish effortPerBusinessItem.
+                If the source provides only end-to-end elapsed/cycle/lead/turnaround time and does not separately state active human effort per business item, set effortPerBusinessItem.status to ABSENT.
+                Manual effort examples that may establish effortPerBusinessItem include "each request requires 12 minutes of manual work", "an analyst spends approximately 8 minutes reviewing each invoice", and "reviewing each application takes between 10 and 15 minutes of staff time".
                 Use status EXACT only for exact scalar quantities stated by the source.
-                Use APPROXIMATE for approximate quantities, RANGE for min/max ranges, ABSENT when the quantity is unavailable, and UNSUPPORTED_UNIT when a quantity exists in a unit not listed by the schema.
+                Use APPROXIMATE only for one scalar quantity modified by approximate language, such as "about 5", "around 5", "approximately 5", "unas 5 solicitudes", "aproximadamente 5", or "alrededor de 5".
+                An expression containing two distinct numeric alternatives or explicit numeric bounds is RANGE, including "4 or 5", "4-5", "between 4 and 5", "from 4 to 5", "4 to 5", "4 o 5", "entre 4 y 5", "de 4 a 5", and "unas cuatro o cinco".
+                If approximation wording appears together with explicit multiple numeric values, the explicit range takes precedence: "unas cuatro o cinco solicitudes por mes" is RANGE 4..5, not APPROXIMATE.
+                Use ABSENT when the relevant quantity is unavailable.
+                Use UNSUPPORTED_UNIT only when the source actually states the correct quantity semantic for volumePerReportingPeriod or effortPerBusinessItem, but the unit is not listed by the schema.
+                For example, "cada solicitud requiere dos horas de trabajo manual" states manual effort per item and may be UNSUPPORTED_UNIT when only MINUTE is supported; "el circuito tarda menos de un dia" is elapsed process duration, so effortPerBusinessItem is ABSENT, not UNSUPPORTED_UNIT.
+                The status and numeric-field shape must match: EXACT uses magnitude and null minMagnitude/maxMagnitude; APPROXIMATE uses magnitude and null minMagnitude/maxMagnitude; RANGE uses null magnitude with minMagnitude and maxMagnitude, with minMagnitude <= maxMagnitude; ABSENT uses null magnitude/minMagnitude/maxMagnitude.
+                Never return APPROXIMATE with null magnitude and non-null minMagnitude or maxMagnitude.
                 Do not convert units. Do not collapse a RANGE to a scalar. Do not promote APPROXIMATE wording to EXACT.
+                Do not choose a midpoint, minimum, or maximum from a range as an exact scalar; leave range resolution to the human/system clarification flow.
                 businessItemRef is an opaque local identifier within this single response. Use the same ref for equivalent item mentions and different refs for distinct item concepts.
                 businessItemLabel is only a short descriptive label and is not a structural identifier.
                 ABSENT means the quantity is unavailable; businessItemRef and businessItemLabel may still be present when the missing quantity's subject is clear.
